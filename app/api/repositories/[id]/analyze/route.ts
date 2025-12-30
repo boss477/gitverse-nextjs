@@ -18,10 +18,13 @@ export async function POST(request: NextRequest, { params }: { params: { id: str
       return NextResponse.json({ error: 'Repository not found' }, { status: 404 })
     }
 
-    // Start analysis in background
-    repositoryService.analyzeRepository(id).catch(console.error)
+    // Update status immediately
+    await repositoryService.updateRepositoryStatus(id, 'analyzing')
 
-    return NextResponse.json({ message: 'Analysis started', status: 'analyzing' })
+    // Run analysis (must await in serverless to prevent function termination)
+    await repositoryService.analyzeRepository(id)
+
+    return NextResponse.json({ message: 'Analysis completed', status: 'completed' })
   } catch (error: any) {
     console.error('Analyze repository error:', error)
     return NextResponse.json({ error: 'Failed to start analysis' }, { status: 500 })
