@@ -11,6 +11,14 @@ export async function GET(
     const user = await requireAuth(request);
     const jobId = params.id;
 
+    const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+    if (!uuidPattern.test(jobId)) {
+      return NextResponse.json(
+        { error: "Invalid job ID format. Expected a UUID" },
+        { status: 400 }
+      );
+    }
+
     const job = await analysisJobService.getJob({
       jobId,
       userId: user.userId,
