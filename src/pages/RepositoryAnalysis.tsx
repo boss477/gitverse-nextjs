@@ -27,6 +27,7 @@ import { useRouter } from "next/navigation";
 import axios from "axios";
 import { useToast } from "@/hooks/use-toast";
 import { buildApiUrl } from "@/services/apiConfig";
+import { RepositoryAnalysisSkeleton } from "@/components/ui/RepositoryAnalysisSkeleton";
 
 type TabType =
   | "overview"
@@ -223,9 +224,7 @@ export default function RepositoryAnalysis() {
     <DashboardLayout>
       <div className="space-y-6">
         {loading ? (
-          <div className="text-center py-12">
-            <p className="text-muted-foreground">Loading repository...</p>
-          </div>
+          <RepositoryAnalysisSkeleton />
         ) : !job ? (
   <div className="text-center py-12 flex flex-col items-center gap-4">
     <Activity className="h-12 w-12 text-muted-foreground/50" />
