@@ -46,3 +46,47 @@ export async function middleware(request: NextRequest) {
 export const config = {
   matcher: ["/api/:path*", "/dashboard/:path*", "/profile/:path*"],
 };
+
+export function badRequestResponse(message = "Bad request") {
+  return new NextResponse(JSON.stringify({ error: message }), {
+    status: 400,
+    headers: { "Content-Type": "application/json" },
+  });
+}
+
+export function unauthorizedResponse(message = "Authentication required") {
+  return new NextResponse(JSON.stringify({ error: message }), {
+    status: 401,
+    headers: { "Content-Type": "application/json" },
+  });
+}
+
+export function forbiddenResponse(message = "You do not have access to this resource") {
+  return new NextResponse(JSON.stringify({ error: message }), {
+    status: 403,
+    headers: { "Content-Type": "application/json" },
+  });
+}
+
+export function notFoundResponse(message = "Resource not found") {
+  return new NextResponse(JSON.stringify({ error: message }), {
+    status: 404,
+    headers: { "Content-Type": "application/json" },
+  });
+}
+
+export function isHttpError(error: any): error is { status: number; message: string } {
+  return typeof error === "object" && error !== null && "status" in error && "message" in error;
+}
+
+export async function getAuthUser(request: NextRequest) {
+  const token = await getToken({ req: request, secret: process.env.NEXTAUTH_SECRET });
+  if (!token || !token.sub) return null;
+  return { userId: parseInt(token.sub, 10) };
+}
+
+export async function requireAuth(request: NextRequest) {
+  const user = await getAuthUser(request);
+  if (!user || !user.userId) throw { status: 401, message: "Authentication required" };
+  return user;
+}

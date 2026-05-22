@@ -83,6 +83,11 @@ export function CommitActivityHeatmap({
 
   useEffect(() => {
     if (!svgRef.current || hasNoCommits) return;
+    if (!svgRef.current || !repository?.commits || repository.commits.length === 0) return;
+
+    if (!repository?.commits || repository.commits.length === 0) {
+      return;
+    }
 
     const data = generateCommitData(repository.commits, now);
     const svg = d3.select(svgRef.current);
