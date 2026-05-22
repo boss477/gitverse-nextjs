@@ -19,6 +19,7 @@
 "worker:server": "cross-env NODE_OPTIONS=\"--dns-result-order=ipv4first --no-network-family-autoselection\" node dist-worker/scripts/workerServer.js",
   "worker:dev": "tsx scripts/analysisWorker.ts",
   "lint": "next lint",
+  "verify": "npm run lint && npm run typecheck",
   "format": "prettier --write \"**/*.{ts,tsx,css}\"",
   "prisma:generate": "prisma generate",
   "prisma:migrate": "prisma migrate dev",

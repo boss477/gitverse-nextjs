@@ -148,6 +148,8 @@ gitverse-nextjs/
 - `npm run build` - Build for production
 - `npm start` - Start production server
 - `npm run lint` - Run Next.js linter
+- `npm run typecheck` - Run TypeScript type checking
+- `npm run verify` - Run lint + typecheck (use before opening a PR)
 - `npm run format` - Format code with Prettier
 - `npm run prisma:generate` - Generate Prisma client
 - `npm run prisma:migrate` - Run database migrations
@@ -442,7 +444,11 @@ npm run dev -- -p 3001
 2. Create a feature branch (`git checkout -b feature/amazing-feature`)
 3. Commit your changes (`git commit -m 'Add amazing feature'`)
 4. Push to the branch (`git push origin feature/amazing-feature`)
-5. Open a Pull Request
+5. Run pre-PR validation to catch lint and type errors before opening a PR:
+   ```bash
+   npm run verify
+   ```
+6. Open a Pull Request
 
 ## 📄 License
 
