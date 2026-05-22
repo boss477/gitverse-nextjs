@@ -459,18 +459,36 @@ export class RepositoryService {
         }),
       );
 
-      if (languagesWithAdjustedPercentage.length > 0) {
-        await prisma.language.createMany({
-          data: languagesWithAdjustedPercentage.map((language) => ({
-            name: language.name,
-            percentage: language.percentage,
-            bytes: language.bytes,
-            lines: language.lines,
-            repositoryId,
-          })),
-          skipDuplicates: true,
+      await prisma.$transaction(async (tx) => {
+        // Always clear stale languages even when result set is empty
+        await tx.language.deleteMany({
+          where: { repositoryId }
         });
-      }
+
+        if (languagesWithAdjustedPercentage.length > 0) {
+          const validLanguages = languagesWithAdjustedPercentage
+            .map((language) => {
+              const trimmedName = language.name.trim();
+              if (!trimmedName) return null;
+              
+              return {
+                name: trimmedName,
+                percentage: language.percentage,
+                bytes: language.bytes,
+                lines: language.lines,
+                repositoryId,
+              };
+            })
+            .filter((lang): lang is NonNullable<typeof lang> => lang !== null);
+
+          if (validLanguages.length > 0) {
+            await tx.language.createMany({
+              data: validLanguages,
+              skipDuplicates: true,
+            });
+          }
+        }
+      });
 
       // Update repository with final data
       await prisma.repository.update({
