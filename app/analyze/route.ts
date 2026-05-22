@@ -3,6 +3,7 @@ import { requireAuth } from "@/lib/middleware";
 import prisma from "@/lib/prisma";
 import { repositoryService } from "@/lib/services/repositoryService";
 import { analysisJobService } from "@/lib/services/analysisJobService";
+import { triggerAnalysisWorkerWorkflow } from "@/lib/services/analysisWorkerTriggerService";
 
 function normalizeKnownRepoHttpUrl(input: string): string | null {
   let parsed: URL;
@@ -37,6 +38,14 @@ function kickLocalRunner(request: NextRequest) {
     headers: secret ? { "x-analysis-runner-secret": secret } : undefined,
   }).catch(() => {
     // Best-effort only.
+  });
+}
+
+function kickProductionWorker() {
+  if (process.env.NODE_ENV !== "production") return;
+
+  void triggerAnalysisWorkerWorkflow().catch((error) => {
+    console.error("Failed to dispatch analysis worker workflow:", error);
   });
 }
 
@@ -107,6 +116,7 @@ export async function POST(request: NextRequest) {
     });
 
     kickLocalRunner(request);
+    kickProductionWorker();
 
     return NextResponse.json(
       { jobId: job.id, status: job.status, repositoryId },
