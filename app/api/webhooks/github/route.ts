@@ -278,6 +278,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json(
       {
         error: "Failed to process PR webhook",
+        details: error?.message || "Unknown error",
       },
       { status: 500 },
     );
