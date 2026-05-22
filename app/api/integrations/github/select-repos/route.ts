@@ -1,7 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { isHttpError, requireAuth } from "@/lib/middleware";
 import prisma from "@/lib/prisma";
+import { sanitizeErrorMessage } from "@/lib/utils/rateLimit";
 import { toJsonSafe } from "@/lib/utils/jsonSafe";
+import { GitHubRateLimitError } from "@/lib/services/githubService";
 
 export async function POST(request: NextRequest) {
   try {
@@ -66,7 +68,15 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({ repos: toJsonSafe(repos) }, { status: 200 });
   } catch (error: any) {
-    console.error("GitHub select repos error:", error);
+    console.error("GitHub select repos error:", sanitizeErrorMessage(error));
+    
+    if (error instanceof GitHubRateLimitError) {
+      return NextResponse.json(
+        { error: error.message, retryAfter: error.retryAfterSeconds },
+        { status: 429 }
+      );
+    }
+
     if (isHttpError(error)) {
       return NextResponse.json(
         { error: error.message },
@@ -76,7 +86,6 @@ export async function POST(request: NextRequest) {
     return NextResponse.json(
       {
         error: "Failed to save selected repos",
-        details: error?.message || "Unknown error",
       },
       { status: 500 },
     );

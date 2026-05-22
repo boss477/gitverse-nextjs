@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { requireAuth } from "@/lib/middleware";
+import { sanitizeErrorMessage } from "@/lib/utils/rateLimit";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -39,7 +40,7 @@ export async function GET(request: NextRequest) {
       isGoogleLinked: hasGoogleAccount,
     });
   } catch (error: any) {
-    console.error("Error fetching user:", error);
+    console.error("Error fetching user:", sanitizeErrorMessage(error));
     return NextResponse.json(
       { message: "Failed to fetch user" },
       { status: 500 }
@@ -57,7 +58,7 @@ export async function DELETE(request: NextRequest) {
 
     return NextResponse.json({ message: "Account deleted" });
   } catch (error: any) {
-    console.error("Error deleting account:", error);
+    console.error("Error deleting account:", sanitizeErrorMessage(error));
     if (error?.code === "P2025") {
       return NextResponse.json({ message: "User not found" }, { status: 404 });
     }

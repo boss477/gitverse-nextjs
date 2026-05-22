@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { isHttpError, requireAuth } from "@/lib/middleware";
 import prisma from "@/lib/prisma";
+import { sanitizeErrorMessage } from "@/lib/utils/rateLimit";
 import { toJsonSafe } from "@/lib/utils/jsonSafe";
 
 export async function GET(request: NextRequest) {
@@ -34,7 +35,7 @@ export async function GET(request: NextRequest) {
       { status: 200 },
     );
   } catch (error: any) {
-    console.error("GitHub connected repos error:", error);
+    console.error("GitHub connected repos error:", sanitizeErrorMessage(error));
     if (isHttpError(error)) {
       return NextResponse.json(
         { error: error.message },
@@ -44,7 +45,6 @@ export async function GET(request: NextRequest) {
     return NextResponse.json(
       {
         error: "Failed to load connected repos",
-        details: error?.message || "Unknown error",
       },
       { status: 500 },
     );

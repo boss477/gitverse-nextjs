@@ -3,6 +3,11 @@ import os from "os";
 import prisma from "../lib/prisma";
 import { analysisJobService } from "../lib/services/analysisJobService";
 import { repositoryService } from "../lib/services/repositoryService";
+import {
+  isRateLimitError,
+  extractRetryAfter,
+  sanitizeErrorMessage,
+} from "../lib/utils/rateLimit";
 import type { AnalysisJob } from "@prisma/client";
 
 const POLL_INTERVAL_MS = 2000;
@@ -27,7 +32,7 @@ async function runJob(
     lockMs: number;
     heartbeatIntervalMs: number;
   }
-) {
+): Promise<boolean> {
   let heartbeatTimer: NodeJS.Timeout | null = null;
   let lastProgressWriteAt = 0;
   let lastProgressPercent: number | undefined;
@@ -79,7 +84,7 @@ async function runJob(
           workerId: params.workerId,
           lockMs: params.lockMs,
         })
-        .catch((e) => console.error("heartbeat failed", e));
+        .catch((e) => console.error("heartbeat failed", sanitizeErrorMessage(e)));
     }, params.heartbeatIntervalMs);
 
     if (job.type !== "repository_analysis") {
@@ -96,20 +101,42 @@ async function runJob(
       jobId: job.id,
       workerId: params.workerId,
     });
+    return true;
   } catch (err: any) {
-    const message = err?.message ? String(err.message) : String(err);
-    console.error(`Job ${job.id} failed:`, err);
+    const rateLimited = isRateLimitError(err);
+    const retryAfter = rateLimited ? extractRetryAfter(err) : null;
+    const safeMessage = sanitizeErrorMessage(err);
+
+    if (rateLimited) {
+      console.error(
+        `Job ${job.id} rate limited (attempt ${job.attempts}/${job.maxAttempts})` +
+          (retryAfter ? `, retry after ${retryAfter}s` : "")
+      );
+    } else {
+      console.error(`Job ${job.id} failed: ${safeMessage}`);
+    }
 
     await analysisJobService.markFailed({
       jobId: job.id,
       workerId: params.workerId,
-      error: message,
+      error: safeMessage,
       attempts: job.attempts,
       maxAttempts: job.maxAttempts,
+      retryAfter: retryAfter ?? undefined,
     });
+    return false;
   } finally {
     if (heartbeatTimer) clearInterval(heartbeatTimer);
   }
+}
+
+export interface AnalysisWorkerSummary {
+  totalJobsScanned: number;
+  jobsProcessed: number;
+  jobsSkipped: number;
+  jobsFailed: number;
+  executionDurationMs: number;
+  success: boolean;
 }
 
 export async function startAnalysisWorkerLoop(opts?: {
@@ -118,7 +145,7 @@ export async function startAnalysisWorkerLoop(opts?: {
   heartbeatIntervalMs?: number;
   lockMs?: number;
   once?: boolean;
-}) {
+}): Promise<AnalysisWorkerSummary> {
   const workerId = opts?.workerId || getWorkerId();
   const pollIntervalMs = opts?.pollIntervalMs ?? POLL_INTERVAL_MS;
   const heartbeatIntervalMs =
@@ -128,6 +155,11 @@ export async function startAnalysisWorkerLoop(opts?: {
   console.log(`analysis worker starting: ${workerId}`);
 
   let stopping = false;
+  const startTimeMs = Date.now();
+  let totalJobsScanned = 0;
+  let jobsProcessed = 0;
+  let jobsSkipped = 0;
+  let jobsFailed = 0;
 
   const shutdown = async (signal: string) => {
     if (stopping) return;
@@ -152,23 +184,49 @@ export async function startAnalysisWorkerLoop(opts?: {
       });
 
       if (!job) {
-        if (opts?.once) return;
+        jobsSkipped++;
+        if (opts?.once) break;
         await sleep(pollIntervalMs);
         continue;
       }
 
+      totalJobsScanned++;
       console.log(
         `claimed job ${job.id} (attempt ${job.attempts}/${job.maxAttempts})`
       );
-      await runJob(job, { workerId, lockMs, heartbeatIntervalMs });
+      const isSuccess = await runJob(job, { workerId, lockMs, heartbeatIntervalMs });
+      
+      if (isSuccess) {
+        jobsProcessed++;
+      } else {
+        jobsFailed++;
+      }
 
-      if (opts?.once) return;
+      if (opts?.once) break;
     } catch (e) {
-      console.error("worker loop error:", e);
-      if (opts?.once) return;
+      console.error("worker loop error:", sanitizeErrorMessage(e));
+      if (opts?.once) {
+        return {
+          totalJobsScanned,
+          jobsProcessed,
+          jobsSkipped,
+          jobsFailed,
+          executionDurationMs: Date.now() - startTimeMs,
+          success: false,
+        };
+      }
       await sleep(pollIntervalMs);
     }
   }
+
+  return {
+    totalJobsScanned,
+    jobsProcessed,
+    jobsSkipped,
+    jobsFailed,
+    executionDurationMs: Date.now() - startTimeMs,
+    success: true,
+  };
 }
 
 // Run as standalone script
@@ -177,7 +235,8 @@ export async function startAnalysisWorkerLoop(opts?: {
 const isMain =
   typeof require !== "undefined" && (require as any).main === module;
 if (isMain) {
-  startAnalysisWorkerLoop().catch((e) => {
+  const once = !!process.env.WORKER_ONCE;
+  startAnalysisWorkerLoop({ once }).catch((e) => {
     console.error("worker fatal:", e);
     process.exit(1);
   });
