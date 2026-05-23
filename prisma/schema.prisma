@@ -216,16 +216,11 @@ model AnalysisJob {
   createdAt      DateTime  @default(now()) @map("created_at")
   updatedAt      DateTime  @updatedAt @map("updated_at")
 
-  // Worker queue: fetch next jobs to process
   @@index([status, nextRunAt])
-  // Worker lock cleanup: find and release expired locks
   @@index([lockExpiresAt])
-  // List all jobs for a repository sorted by newest first
-  @@index([repositoryId, createdAt(sort: Desc)])
-  // List all jobs for a user sorted by newest first
-  @@index([userId, createdAt(sort: Desc)])
-  // Filter active jobs per repository
-  @@index([repositoryId, status])
+  @@index([repositoryId])
+  @@index([userId])
+  @@map("analysis_jobs")
 }
 
 model Branch {
