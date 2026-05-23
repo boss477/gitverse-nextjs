@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
+import { Prisma } from "@prisma/client";
 import { requireAuth } from "@/lib/middleware";
 import bcrypt from "bcryptjs";
 
@@ -69,7 +70,7 @@ export async function PUT(request: NextRequest) {
       });
     }
 
-    const updateData: any = { name, email };
+    const updateData: Prisma.UserUpdateInput ={ name, email };
 
     if (isEmailChanging && hasLinkedGoogle) {
       updateData.passwordHash = await bcrypt.hash(newPassword, 10);
