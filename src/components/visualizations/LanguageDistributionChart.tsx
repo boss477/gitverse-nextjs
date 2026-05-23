@@ -215,6 +215,7 @@ export function LanguageDistributionChart({
         </p>
       </div>
       {languageData.length > 0 && (
+      {languageData.length > 0 && (
         <div className="flex items-center justify-center overflow-x-auto -mx-4 sm:mx-0 px-4 sm:px-0">
           <svg
             ref={svgRef}
@@ -225,6 +226,12 @@ export function LanguageDistributionChart({
             className="text-foreground max-w-md"
           />
         </div>
+      )}
+      {languageData.length === 0 && (
+        <div className="text-center py-8 text-muted-foreground text-sm">
+          No language data available for this repository
+        </div>
+      )}
       )}
       {languageData.length === 0 && (
         <div className="text-center py-8 text-muted-foreground text-sm">

@@ -1,4 +1,3 @@
-import { sanitizeError } from "@/lib/middleware";
 import { NextRequest, NextResponse } from "next/server";
 import { verifyGitHubWebhookSignature } from "@/lib/utils/githubWebhook";
 import { GitHubAppService } from "@/lib/services/githubAppService";
