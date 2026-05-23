@@ -490,6 +490,10 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+
   .marquee__track {
     animation: none;
     transform: none;
