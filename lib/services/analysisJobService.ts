@@ -29,7 +29,7 @@ export class AnalysisJobService {
         type: "repository_analysis",
         status: "QUEUED",
         progressPercent: 0,
-        progressMessage: "Queued for analysis",
+        progressMessage: "Queued",
         maxAttempts: params.maxAttempts ?? 3,
       },
     });
