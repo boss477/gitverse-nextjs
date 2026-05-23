@@ -1,7 +1,7 @@
 import React from "react";
 import { Navbar, Footer } from "@/components/layout";
 
-export default function Privacy() {
+export default function Security() {
   return (
     <div className="min-h-screen bg-background">
       <Navbar />

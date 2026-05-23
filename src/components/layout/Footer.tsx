@@ -81,12 +81,12 @@ export const Footer: React.FC = () => {
             <h3 className="font-semibold text-foreground mb-4">Legal</h3>
             <ul className="space-y-2 text-sm">
               <li>
-                <Link href="/privacy" className="hover:text-primary transition-colors">
+                <Link href="/privacy-policy" className="hover:text-primary transition-colors">
                   Privacy Policy
                 </Link>
               </li>
               <li>
-                <Link href="/terms" className="hover:text-primary transition-colors">
+                <Link href="/terms-of-service" className="hover:text-primary transition-colors">
                   Terms of Service
                 </Link>
               </li>
@@ -96,7 +96,7 @@ export const Footer: React.FC = () => {
                 </Link>
               </li>
               <li>
-                <Link href="/cookies" className="hover:text-primary transition-colors">
+                <Link href="/cookie-policy" className="hover:text-primary transition-colors">
                   Cookie Policy
                 </Link>
               </li>
