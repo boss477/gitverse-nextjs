@@ -296,6 +296,7 @@ model FileChange {
   createdAt DateTime @default(now()) @map("created_at")
 
   @@map("file_changes")
+  @@index([commitId])
 }
 
 model Contributor {
