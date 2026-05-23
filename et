@@ -1,8 +1,0 @@
-[33mcommit 9880fef3775b99ca8f534a795a6221f7202aa1a7[m[33m ([m[1;36mHEAD[m[33m -> [m[1;32mgithub[m[33m, [m[1;31mupstream/main[m[33m, [m[1;31mupstream/HEAD[m[33m, [m[1;31morigin/github[m[33m, [m[1;32mmain[m[33m)[m
-Merge: 8a603ec 69e7bdb
-Author: Nisshchaya Rathi <nisshchayarathi111@gmail.com>
-Date:   Sat May 23 13:24:00 2026 +0530
-
-    Merge pull request #806 from nisshchayarathi/revert-646-feature/default-branch-issue-281
-    
-    Revert "feat: fetch defaultBranch from GitHub API with fallback to git detection"
