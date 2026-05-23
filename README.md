@@ -155,6 +155,58 @@ All API routes are available under `/api`:
 - `/api/users/profile` - User profile management
 - `/api/integrations/*` - Git platform integrations
 
+## 📑 API Pagination
+
+To ensure consistent performance and predictability, paginated API endpoints in GitVerse use **cursor-based pagination** instead of traditional offset pagination.
+
+### Query Parameters
+
+| Parameter | Type | Default | Description |
+| :--- | :--- | :--- | :--- |
+| `limit` | `number` | `10` | The maximum number of items to return (clamped to max `50` for safety). |
+| `cursor`| `string` | `null` | The ID of the last item received in the previous page. Omit for the first page. |
+
+### Example Request
+
+```bash
+GET /api/auth/sessions?limit=20&cursor=clq123abc
+```
+
+### Standard Response Format
+
+All paginated endpoints return an object containing an `items` array and a `nextCursor` string. If `nextCursor` is present, it indicates there is more data available.
+
+```json
+{
+  "items": [
+    { "id": "clq123abd", "expires": "2026-05-21T00:00:00.000Z" },
+    { "id": "clq123abe", "expires": "2026-05-20T00:00:00.000Z" }
+  ],
+  "nextCursor": "clq123abf"
+}
+```
+
+### Frontend Consumption Best Practices
+
+When fetching data in the UI (e.g., via infinite scrolling or "Load More" buttons), keep track of the `nextCursor` and pass it to subsequent requests. Avoid duplicate fetches by ensuring UI loading states block concurrent requests.
+
+```javascript
+const loadMore = async () => {
+  if (!nextCursor || isLoading) return;
+  setIsLoading(true);
+  
+  try {
+    const res = await fetch(`/api/auth/sessions?limit=20&cursor=${nextCursor}`);
+    const data = await res.json();
+    
+    setItems((prev) => [...prev, ...data.items]);
+    setNextCursor(data.nextCursor);
+  } finally {
+    setIsLoading(false);
+  }
+};
+```
+
 ## 🚀 Deployment
 
 ### Vercel (Recommended)
@@ -163,6 +215,35 @@ All API routes are available under `/api`:
 2. Import project in Vercel
 3. Add environment variables in Vercel dashboard
 4. Deploy!
+
+#### ✅ Vercel Environment Variables Checklist
+
+Add these in **Vercel Dashboard → Settings → Environment Variables**:
+
+| Variable | Required | When needed |
+|---|---|---|
+| `DATABASE_URL` | ✅ Always | PostgreSQL connection string (use NeonDB pooler URL) |
+| `NEXTAUTH_SECRET` | ✅ Always | Session encryption — generate with `openssl rand -base64 32` |
+| `NEXTAUTH_URL` | ✅ Always | Your production domain e.g. `https://your-app.vercel.app` |
+| `GEMINI_API_KEY` | ✅ Always | Google Gemini AI — get from [aistudio.google.com](https://aistudio.google.com) |
+| `JWT_SECRET` | ✅ Always | JWT signing secret |
+| `GOOGLE_CLIENT_ID` | ⚡ OAuth | Only if using Google login |
+| `GOOGLE_CLIENT_SECRET` | ⚡ OAuth | Only if using Google login |
+| `GITHUB_APP_ID` | ⚡ PR Reviews | Only if using GitHub App integration |
+| `GITHUB_APP_PRIVATE_KEY` | ⚡ PR Reviews | Only if using GitHub App integration |
+| `GITHUB_WEBHOOK_SECRET` | ⚡ PR Reviews | Only if using GitHub webhooks |
+| `ANALYSIS_RUNNER_SECRET` | ⚡ Cron | Required for scheduled analysis jobs on Vercel |
+| `GITVERSE_ANALYSIS_BACKEND` | ⚡ Cron | URL of your analysis worker backend |
+| `SMTP_HOST` | ⚡ Email | Only if using password reset emails |
+| `SMTP_USER` | ⚡ Email | Only if using password reset emails |
+| `SMTP_PASS` | ⚡ Email | Only if using password reset emails |
+
+#### ⚠️ Common Vercel Deployment Mistakes
+
+- **Wrong DATABASE_URL** — Use the **pooler** URL from NeonDB for Vercel (not direct connection)
+- **Missing NEXTAUTH_URL** — Must be set to your exact production domain
+- **GITHUB_APP_PRIVATE_KEY format** — Paste with literal `\n` between lines, wrapped in quotes
+- **ANALYSIS_RUNNER_SECRET not set** — Recommended for security; without it, the cron endpoint runs unauthenticated on Vercel
 
 ### Docker
 
@@ -201,23 +282,26 @@ firebase deploy
 
 ## 📝 Environment Variables
 
-Required:
+> 💡 For a full Vercel deployment checklist, see the [Vercel Deployment section](#-deployment) above.
 
-- `DATABASE_URL` - PostgreSQL connection string
-- `JWT_SECRET` - JWT secret key
-- `GEMINI_API_KEY` - Google Gemini API key
-
-OAuth (Google / NextAuth):
-
-- `NEXTAUTH_URL` - Deployed base URL (e.g. `https://<your-domain>`)
-- `NEXTAUTH_SECRET` - Session/JWT signing secret (generate with `openssl rand -base64 32`)
-- `GOOGLE_CLIENT_ID` - Google OAuth client id
-- `GOOGLE_CLIENT_SECRET` - Google OAuth client secret
-
-Optional:
-
-- `NEXT_PUBLIC_API_URL` - API URL for client-side (defaults to current domain)
-
+| Variable | Required | Description |
+|---|---|---|
+| `DATABASE_URL` | ✅ Always | PostgreSQL connection string (use NeonDB pooler URL for Vercel) |
+| `JWT_SECRET` | ✅ Always | JWT signing secret key |
+| `GEMINI_API_KEY` | ✅ Always | Google Gemini API key for AI features |
+| `NEXTAUTH_URL` | ✅ Always | Deployed base URL e.g. `https://<your-domain>` |
+| `NEXTAUTH_SECRET` | ✅ Always | Session/JWT signing secret (generate with `openssl rand -base64 32`) |
+| `GOOGLE_CLIENT_ID` | ⚡ OAuth | Google OAuth client id |
+| `GOOGLE_CLIENT_SECRET` | ⚡ OAuth | Google OAuth client secret |
+| `GITHUB_APP_ID` | ⚡ PR Reviews | GitHub App ID |
+| `GITHUB_APP_PRIVATE_KEY` | ⚡ PR Reviews | GitHub App private key (PEM format) |
+| `GITHUB_WEBHOOK_SECRET` | ⚡ PR Reviews | GitHub webhook secret |
+| `ANALYSIS_RUNNER_SECRET` | ⚡ Cron | Required for scheduled analysis jobs on Vercel |
+| `GITVERSE_ANALYSIS_BACKEND` | ⚡ Cron | URL of your analysis worker backend |
+| `SMTP_HOST` | ⚡ Email | SMTP server for password reset emails |
+| `SMTP_USER` | ⚡ Email | SMTP username |
+| `SMTP_PASS` | ⚡ Email | SMTP password / app password |
+| `NEXT_PUBLIC_API_URL` | Optional | API URL for client-side (defaults to current domain) |
 ## 🤝 Contributing
 
 1. Fork the repository

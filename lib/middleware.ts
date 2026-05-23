@@ -1,4 +1,4 @@
-import { NextRequest } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { verifyToken, JWTPayload } from "./auth";
 import { getToken } from "next-auth/jwt";
 
@@ -45,6 +45,17 @@ export async function requireAuth(request: NextRequest): Promise<JWTPayload> {
   return user;
 }
 
+export async function requireOwnership(
+  request: NextRequest,
+  resourceUserId: number
+): Promise<JWTPayload> {
+  const user = await requireAuth(request);
+  if (user.userId !== resourceUserId) {
+    throw new HttpError(403, "Forbidden");
+  }
+  return user;
+}
+
 export class HttpError extends Error {
   status: number;
 
@@ -61,4 +72,20 @@ export function isHttpError(error: unknown): error is HttpError {
     "status" in error &&
     typeof (error as any).status === "number"
   );
+}
+
+export function sanitizeError(error: unknown): string {
+  if (error instanceof Error) {
+    return error.message;
+  }
+  try {
+    const str = String(error);
+    return str.length > 200 ? str.substring(0, 200) + "..." : str;
+  } catch {
+    return "Unknown error";
+  }
+}
+
+export function errorResponse(message: string, status: number = 400): NextResponse {
+  return NextResponse.json({ error: message }, { status });
 }

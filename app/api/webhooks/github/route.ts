@@ -1,3 +1,4 @@
+import { sanitizeError } from "@/lib/middleware";
 import { NextRequest, NextResponse } from "next/server";
 import { verifyGitHubWebhookSignature } from "@/lib/utils/githubWebhook";
 import { GitHubAppService } from "@/lib/services/githubAppService";
@@ -291,11 +292,10 @@ export async function POST(request: NextRequest) {
       { status: 200 },
     );
   } catch (error: any) {
-    console.error("GitHub webhook PR review error:", error);
+    console.error("GitHub webhook PR review error:", sanitizeError(error));
     return NextResponse.json(
       {
         error: "Failed to process PR webhook",
-        details: error?.message || "Unknown error",
       },
       { status: 500 },
     );
