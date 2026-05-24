@@ -302,7 +302,7 @@ class RepositoryService {
                             path: change.path,
                             additions: change.additions,
                             deletions: change.deletions,
-                            changeType: change.changeType,
+                            changeType: change.changeType.toUpperCase(),
                             commitId,
                         }));
                     });
@@ -448,6 +448,9 @@ class RepositoryService {
             // Cleanup cloned repository
             if (gitService) {
                 await gitService.cleanup();
+            }
+            else {
+                await fs.rm(tempDir, { recursive: true, force: true }).catch(() => null);
             }
         }
     }
