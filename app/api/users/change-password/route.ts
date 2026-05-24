@@ -66,7 +66,7 @@ export async function POST(request: NextRequest) {
         where: { id: user.userId },
         data: {
           passwordHash: hashedPassword,
-          passwordChangedAt: new Date(),
+          passwordChangedAt: new Date(Math.floor(Date.now() / 1000) * 1000),
         },
       }),
       prisma.session.deleteMany({

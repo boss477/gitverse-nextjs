@@ -9,10 +9,10 @@ export interface AuthenticatedRequest {
 }
 
 /**
- * Resolves the authenticated user from either a JWT bearer token or a NextAuth session cookie.
+ * Resolves the authenticated user from either a JWT bearer token
+ * or a NextAuth session cookie.
  * Rejects tokens issued before the user's latest password change.
  */
-
 export async function getAuthUser(
   request: NextRequest
 ): Promise<JWTPayload | null> {
@@ -46,10 +46,12 @@ export async function getAuthUser(
       if (
         dbUser.passwordChangedAt &&
         (issuedAt === null ||
-          issuedAt * 1000 < dbUser.passwordChangedAt.getTime())
+          issuedAt * 1000 <
+            dbUser.passwordChangedAt.getTime())
       ) {
         return null;
       }
+
       isBearerAuth = true;
       userPayload = payload;
     }
@@ -66,12 +68,35 @@ export async function getAuthUser(
       if (token?.sub && token.email) {
         const userId = Number(token.sub);
 
-        if (Number.isFinite(userId)) {
-          userPayload = {
-            userId,
-            email: token.email,
-          };
+        if (!Number.isFinite(userId)) {
+          return null;
         }
+
+        const dbUser = await prisma.user.findUnique({
+          where: { id: userId },
+          select: {
+            passwordChangedAt: true,
+          },
+        });
+
+        const issuedAt =
+          typeof token.iat === "number"
+            ? token.iat
+            : null;
+
+        if (
+          dbUser?.passwordChangedAt &&
+          (issuedAt === null ||
+            issuedAt * 1000 <
+              dbUser.passwordChangedAt.getTime())
+        ) {
+          return null;
+        }
+
+        userPayload = {
+          userId,
+          email: token.email,
+        };
       }
     } catch {
       // Ignore token retrieval errors
@@ -80,8 +105,7 @@ export async function getAuthUser(
 
   if (!userPayload) return null;
 
-  // 3) Verify user existence in database
-
+  // 3) Verify user existence in database for NextAuth sessions
   if (!isBearerAuth) {
     try {
       const userExists = await prisma.user.findUnique({
@@ -93,11 +117,14 @@ export async function getAuthUser(
         return null;
       }
     } catch (error) {
-      console.error("Database check failed in auth middleware:", error);
+      console.error(
+        "Database check failed in auth middleware:",
+        error
+      );
       return null;
     }
   }
-  
+
   return userPayload;
 }
 
@@ -120,7 +147,6 @@ export async function requireAuth(
 /**
  * Ensures the authenticated user owns the requested resource.
  */
-
 export async function requireOwnership(
   request: NextRequest,
   resourceUserId: number
@@ -143,7 +169,9 @@ export class HttpError extends Error {
   }
 }
 
-export function isHttpError(error: unknown): error is HttpError {
+export function isHttpError(
+  error: unknown
+): error is HttpError {
   return (
     typeof error === "object" &&
     error !== null &&
@@ -159,7 +187,10 @@ export function sanitizeError(error: unknown): string {
 
   try {
     const str = String(error);
-    return str.length > 200 ? str.substring(0, 200) + "..." : str;
+
+    return str.length > 200
+      ? str.substring(0, 200) + "..."
+      : str;
   } catch {
     return "Unknown error";
   }
@@ -169,5 +200,8 @@ export function errorResponse(
   message: string,
   status: number = 400
 ): NextResponse {
-  return NextResponse.json({ error: message }, { status });
+  return NextResponse.json(
+    { error: message },
+    { status }
+  );
 }
