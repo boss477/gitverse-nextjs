@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { isHttpError, requireAuth } from "@/lib/middleware";
+import { isHttpError, requireAuth , sanitizeError } from "@/lib/middleware";
 import { repositoryService } from "@/lib/services/repositoryService";
 
 type RepositoryFile = {
@@ -65,7 +65,7 @@ export async function POST(request: NextRequest) {
       file: { path: file.path, language: file.language },
     });
   } catch (error: any) {
-    console.error("File explanation error:", error);
+    console.error("File explanation error:", sanitizeError(error));
 
     if (isHttpError(error)) {
       return NextResponse.json(
@@ -74,7 +74,7 @@ export async function POST(request: NextRequest) {
       );
     }
     return NextResponse.json(
-      { error: "Failed to explain file", details: error.message },
+      { error: "Failed to explain file" },
       { status: 500 }
     );
   }

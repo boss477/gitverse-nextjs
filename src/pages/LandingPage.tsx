@@ -29,6 +29,7 @@ export default function LandingPage() {
   const [repoUrl, setRepoUrl] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [scoreAnimate, setScoreAnimate] = useState(false);
+  const isAnalyzeDisabled = !repoUrl.trim() || isLoading;
 
   const mentorMessages = useMemo(
     () => [
@@ -127,6 +128,7 @@ export default function LandingPage() {
 
   const handleAnalyze = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!repoUrl.trim() || isLoading) return;
 
     // Demo-only CTA: keep it as UI (no navigation / no analysis).
     setIsLoading(true);
@@ -385,8 +387,8 @@ export default function LandingPage() {
                   <Button
                     type="submit"
                     size="lg"
-                    disabled={isLoading}
-                    className="group h-12 px-6 bg-gradient-primary hover:opacity-90 transition-opacity font-semibold transition-transform hover:scale-[1.01] active:scale-[0.99]"
+                    disabled={isAnalyzeDisabled}
+                    className="group h-12 px-6 bg-gradient-primary font-semibold transition-all hover:opacity-90 hover:scale-[1.01] active:scale-[0.99] disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:scale-100"
                   >
                     {isLoading ? (
                       <>
@@ -675,7 +677,7 @@ export default function LandingPage() {
             {pricingPlans.map((plan) => (
               <Card
                 key={plan.name}
-                className={`relative glass ${plan.popular ? "border-primary glow-primary" : "glass-hover"}`}
+                className={`relative glass transition-all duration-300 ${plan.popular ? "border-primary glow-primary" : "border-border/50 hover:border-primary hover:shadow-lg hover:shadow-primary/10 hover:-translate-y-1"}`}
               >
                 {plan.popular && (
                   <div className="absolute -top-4 left-1/2 -translate-x-1/2 px-4 py-1 bg-gradient-primary rounded-full text-sm font-medium text-primary-foreground">

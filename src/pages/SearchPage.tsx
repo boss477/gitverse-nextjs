@@ -14,6 +14,7 @@ import {
   CardContent,
   Button,
   Input,
+  EmptyState,
 } from "@/components/ui";
 import { buildApiUrl } from "@/services/apiConfig";
 import axios from "axios";
@@ -43,12 +44,14 @@ export default function SearchPage() {
   const [sortBy, setSortBy] = useState<"recent" | "stars" | "name">("recent");
   const [repositories, setRepositories] = useState<Repository[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
 
   useEffect(() => {
     fetchRepositories();
   }, []);
 
   const fetchRepositories = async () => {
+     setError("");
     try {
       const token = localStorage.getItem("gitverse_token");
       const response = await axios.get(buildApiUrl("/api/repositories"), {
@@ -57,10 +60,17 @@ export default function SearchPage() {
       // API returns { repositories: [...] }
       const repos = response.data.repositories || [];
       setRepositories(Array.isArray(repos) ? repos : []);
-    } catch (error) {
-      console.error("Error fetching repositories:", error);
-      setRepositories([]);
-    } finally {
+    }  
+    catch (error) {
+  console.error("Error fetching repositories:", error);
+
+  setRepositories([]);
+
+  setError(
+    "Failed to load repositories. Please check your connection and try again."
+  );
+}
+finally {
       setLoading(false);
     }
   };
@@ -148,6 +158,7 @@ export default function SearchPage() {
         </div>
 
         {/* Repository Grid/List */}
+<<<<<<< HEAD
         {loading ? (
           <div className="text-center py-12 text-muted-foreground">
             Loading repositories...
@@ -162,6 +173,38 @@ export default function SearchPage() {
     </p>
   </div>
 </div>
+=======
+       {loading ? (
+  <div className="text-center py-12 text-muted-foreground">
+    Loading repositories...
+  </div>
+) : error ? (
+  <div className="text-center py-12 text-red-500">
+    {error}
+  </div>
+) : sortedRepositories.length === 0 ? (
+          searchQuery ? (
+            <EmptyState
+              icon={Search}
+              title="No repositories found"
+              description="We couldn't find any repositories matching your search query. Try adjusting your search term."
+              suggestions={[
+                "Try another repository",
+                "Check the GitHub username",
+              ]}
+              actionLabel="Clear Search"
+              onAction={() => setSearchQuery("")}
+            />
+          ) : (
+            <EmptyState
+              icon={GitBranch}
+              title="No Repositories Yet"
+              description="You haven't analyzed any repositories. Head to the dashboard to get started!"
+              actionLabel="Go to Dashboard"
+              onAction={() => router.push("/dashboard")}
+            />
+          )
+>>>>>>> upstream/main
         ) : viewMode === "grid" ? (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-6">
             {sortedRepositories.map((repo, index) => (

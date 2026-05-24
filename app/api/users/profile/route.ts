@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
+import { Prisma } from "@prisma/client";
 import { requireAuth } from "@/lib/middleware";
 import bcrypt from "bcryptjs";
 
@@ -11,7 +12,7 @@ export async function PUT(request: NextRequest) {
 
     if (!name || !email) {
       return NextResponse.json(
-        { message: "Name and email are required" },
+        { error: "Name and email are required" },
         { status: 400 }
       );
     }
@@ -25,7 +26,7 @@ export async function PUT(request: NextRequest) {
 
     if (existingUser) {
       return NextResponse.json(
-        { message: "Email is already in use" },
+        { error: "Email is already in use" },
         { status: 400 }
       );
     }
@@ -49,7 +50,7 @@ export async function PUT(request: NextRequest) {
       if (!newPassword || typeof newPassword !== "string") {
         return NextResponse.json(
           {
-            message:
+            error:
               "Changing email will unlink your Google account. Please provide newPassword to set a new password.",
           },
           { status: 400 }
@@ -58,7 +59,7 @@ export async function PUT(request: NextRequest) {
 
       if (newPassword.length < 8) {
         return NextResponse.json(
-          { message: "Password must be at least 8 characters" },
+          { error: "Password must be at least 8 characters" },
           { status: 400 }
         );
       }
@@ -69,7 +70,7 @@ export async function PUT(request: NextRequest) {
       });
     }
 
-    const updateData: any = { name, email };
+    const updateData: Prisma.UserUpdateInput ={ name, email };
 
     if (isEmailChanging && hasLinkedGoogle) {
       updateData.passwordHash = await bcrypt.hash(newPassword, 10);
@@ -96,9 +97,9 @@ export async function PUT(request: NextRequest) {
       avatarUrl: (updatedUser as any).image,
     });
   } catch (error: any) {
-    console.error("Error updating profile:", error);
+    console.error("Error updating profile:", sanitizeError(error));
     return NextResponse.json(
-      { message: "Failed to update profile" },
+      { error: "Failed to update profile" },
       { status: 500 }
     );
   }

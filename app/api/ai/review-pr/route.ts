@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { requireAuth } from "@/lib/middleware";
+import { requireAuth , sanitizeError } from "@/lib/middleware";
 import {
   parsePullRequestUrl,
   reviewPullRequest,
@@ -15,6 +15,10 @@ export async function POST(request: NextRequest) {
 
     if (!prUrl) {
       return NextResponse.json({ error: "prUrl is required" }, { status: 400 });
+    }
+
+    if (!token) {
+      return NextResponse.json({ error: "token is required" }, { status: 400 });
     }
 
     const parsed = parsePullRequestUrl(prUrl);
@@ -39,11 +43,10 @@ export async function POST(request: NextRequest) {
       pr: { url: result.prUrl || prUrl, title: result.prTitle },
     });
   } catch (error: any) {
-    console.error("PR review error:", error);
+    console.error("PR review error:", sanitizeError(error));
     return NextResponse.json(
       {
         error: "Failed to review PR",
-        details: error?.message || "Unknown error",
       },
       { status: 500 },
     );
