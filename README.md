@@ -310,6 +310,11 @@ firebase deploy
 4. Push to the branch (`git push origin feature/amazing-feature`)
 5. Open a Pull Request
 
+## 💖 Contributors & Thanks
+
+A huge thank you to all contributors who have helped improve GitVerse ❤️
+Your efforts make this project stronger, more reliable, and more impactful for the community.
+
 ## 📄 License
 
 This project is licensed under the MIT License.
