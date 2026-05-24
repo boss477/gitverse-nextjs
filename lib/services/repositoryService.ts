@@ -193,7 +193,12 @@ export class RepositoryService {
         progressPercent: 5,
         progressMessage: "Cloning repository",
       });
-      gitService = await GitService.cloneRepository(repository.url, tempDir);
+      gitService = await GitService.cloneRepository(repository.url, tempDir, {
+        onProgress: (pct, msg) => {
+          const analysisPct = 5 + Math.round((pct / 100) * 3);
+          report({ progressPercent: Math.min(8, analysisPct), progressMessage: msg });
+        },
+      });
 
       // Capture README / size / branches in parallel; these are independent once cloned.
       await report({ progressPercent: 8, progressMessage: "Reading README" });

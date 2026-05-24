@@ -161,25 +161,71 @@ export class GitService {
   static async cloneRepository(
     url: string,
     destination: string,
-    opts?: { depth?: number; noSingleBranch?: boolean },
+    opts?: {
+      depth?: number;
+      noSingleBranch?: boolean;
+      onProgress?: (percent: number, message: string) => void;
+    },
   ): Promise<GitService> {
-    try {
-      await fs.mkdir(destination, { recursive: true });
-      const depth = Math.max(1, Math.min(opts?.depth ?? 1000, 1000));
-      const noSingleBranch = opts?.noSingleBranch ?? true;
-      // Clone with all branches by default (--no-single-branch fetches all branches)
-      await execPromise(
-        `git -c credential.interactive=never -c core.askPass= -c filter.lfs.required=false -c filter.lfs.smudge= -c filter.lfs.process= clone --no-tags --depth ${depth} ${noSingleBranch ? "--no-single-branch" : "--single-branch"} "${url}" "${destination}"`,
-        {
-          // Cloning can take a while on larger repos.
-          timeout: GIT_CLONE_TIMEOUT_MS,
+    await fs.mkdir(destination, { recursive: true });
+    const depth = Math.max(1, Math.min(opts?.depth ?? 1000, 1000));
+    const noSingleBranch = opts?.noSingleBranch ?? true;
+
+    const args = [
+      "-c", "credential.interactive=never",
+      "-c", "core.askPass=",
+      "-c", "filter.lfs.required=false",
+      "-c", "filter.lfs.smudge=",
+      "-c", "filter.lfs.process=",
+      "clone", "--no-tags", "--progress",
+      "--depth", String(depth),
+      noSingleBranch ? "--no-single-branch" : "--single-branch",
+      url,
+      destination,
+    ];
+
+    return new Promise((resolve, reject) => {
+      const child = spawn("git", args, {
+        stdio: ["ignore", "pipe", "pipe"],
+        env: {
+          ...process.env,
+          GIT_TERMINAL_PROMPT: "0",
+          GCM_INTERACTIVE: "Never",
+          GIT_LFS_SKIP_SMUDGE: "1",
         },
-      );
-      const gitService = new GitService(destination);
-      return gitService;
-    } catch (error: any) {
-      throw new Error(`Failed to clone repository: ${error.message}`);
-    }
+        timeout: GIT_CLONE_TIMEOUT_MS,
+      });
+
+      let lastReportedPct = 0;
+
+      child.stderr?.on("data", (chunk: Buffer) => {
+        const text = chunk.toString();
+        const match = text.match(/Receiving objects:\s+(\d+)%/);
+        if (match) {
+          const pct = parseInt(match[1], 10);
+          if (pct - lastReportedPct >= 5 || pct === 100) {
+            lastReportedPct = pct;
+            opts?.onProgress?.(pct, `Cloning repository (${pct}%)`);
+          }
+        }
+      });
+
+      let stderr = "";
+      child.stderr?.on("data", (chunk: Buffer) => {
+        stderr += chunk.toString();
+      });
+
+      child.on("close", (code) => {
+        if (code === 0) {
+          resolve(new GitService(destination));
+        } else {
+          const msg = stderr.trim().split("\n").pop() || `exit code ${code}`;
+          reject(new Error(`Failed to clone repository: ${msg}`));
+        }
+      });
+
+      child.on("error", reject);
+    });
   }
 
   /**
