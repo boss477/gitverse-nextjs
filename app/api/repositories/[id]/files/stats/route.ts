@@ -8,6 +8,8 @@ const securityHeaders = {
   "Expires": "0",
 };
 
+const MAX_PATHS = 1000;
+
 const parseRepositoryId = (id: string) => {
   const repositoryId = parseInt(id, 10);
   return Number.isNaN(repositoryId) ? null : repositoryId;
@@ -46,6 +48,13 @@ async function handleFileStats(
     const paths = (await parsePathsFromRequest(request)).filter(
       (path): path is string => typeof path === "string",
     );
+
+    if (paths.length > MAX_PATHS) {
+      return NextResponse.json(
+        { error: `Too many paths requested (max ${MAX_PATHS})` },
+        { status: 400, headers: securityHeaders },
+      );
+    }
 
     const stats = await repositoryService.getFileStats(
       repositoryId,
