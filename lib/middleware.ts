@@ -18,7 +18,6 @@ export async function getAuthUser(
 ): Promise<JWTPayload | null> {
   const authHeader = request.headers.get("authorization");
   let userPayload: JWTPayload | null = null;
-  let isBearerAuth = false;
 
   // 1) Existing JWT auth (Authorization: Bearer ...)
   if (authHeader && authHeader.startsWith("Bearer ")) {
@@ -46,13 +45,12 @@ export async function getAuthUser(
       if (
         dbUser.passwordChangedAt &&
         (issuedAt === null ||
-          issuedAt * 1000 <
+          issuedAt * 1000 <=
             dbUser.passwordChangedAt.getTime())
       ) {
         return null;
       }
 
-      isBearerAuth = true;
       userPayload = payload;
     }
   }
@@ -75,9 +73,14 @@ export async function getAuthUser(
         const dbUser = await prisma.user.findUnique({
           where: { id: userId },
           select: {
+            id: true,
             passwordChangedAt: true,
           },
         });
+
+        if (!dbUser) {
+          return null;
+        }
 
         const issuedAt =
           typeof token.iat === "number"
@@ -85,9 +88,9 @@ export async function getAuthUser(
             : null;
 
         if (
-          dbUser?.passwordChangedAt &&
+          dbUser.passwordChangedAt &&
           (issuedAt === null ||
-            issuedAt * 1000 <
+            issuedAt * 1000 <=
               dbUser.passwordChangedAt.getTime())
         ) {
           return null;
@@ -100,28 +103,6 @@ export async function getAuthUser(
       }
     } catch {
       // Ignore token retrieval errors
-    }
-  }
-
-  if (!userPayload) return null;
-
-  // 3) Verify user existence in database for NextAuth sessions
-  if (!isBearerAuth) {
-    try {
-      const userExists = await prisma.user.findUnique({
-        where: { id: userPayload.userId },
-        select: { id: true },
-      });
-
-      if (!userExists) {
-        return null;
-      }
-    } catch (error) {
-      console.error(
-        "Database check failed in auth middleware:",
-        error
-      );
-      return null;
     }
   }
 
