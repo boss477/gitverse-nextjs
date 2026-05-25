@@ -168,6 +168,8 @@ model Repository {
   readmeFetchedAt DateTime?    @map("readme_fetched_at")
   defaultBranch  String        @default("main") @map("default_branch")
   isPrivate      Boolean       @default(false) @map("is_private")
+  isPinned       Boolean       @default(false) @map("is_pinned")
+  pinnedAt       DateTime?     @map("pinned_at")
   stars          Int           @default(0)
   forks          Int           @default(0)
   size           Int           @default(0) // Size in bytes

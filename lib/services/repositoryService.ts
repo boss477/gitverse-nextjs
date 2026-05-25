@@ -580,6 +580,10 @@ export class RepositoryService {
   async listRepositories(userId: number) {
     const repositories = await prisma.repository.findMany({
       where: { userId },
+      orderBy: [
+        { isPinned: "desc" },
+        { createdAt: "desc" },
+      ],
       include: {
         _count: {
           select: {
@@ -594,7 +598,7 @@ export class RepositoryService {
           take: 3,
         },
       },
-      orderBy: { createdAt: "desc" },
+      orderBy: [{ isPinned: "desc" }, { createdAt: "desc" }],
     });
 
     return repositories;
