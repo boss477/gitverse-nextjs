@@ -5,7 +5,7 @@ import { analysisJobService } from "@/lib/services/analysisJobService";
 
 const MAX_KICK_ENTRIES = 1000;
 const lastKickAtByJobId = new Map<string, number>();
-const MAX_KICK_ENTRIES = 1000;
+
 
 function kickLocalRunner(request: NextRequest, jobId: string) {
   if (process.env.NODE_ENV === "production") return;
