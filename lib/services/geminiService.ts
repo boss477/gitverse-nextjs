@@ -114,15 +114,36 @@ export class GeminiService {
   /**
    * Chat using a pre-built prompt (free-form)
    */
-  async chatRaw(prompt: string): Promise<string> {
+  async chatRaw(
+    prompt: string,
+    history?: Array<{ role: "user" | "assistant"; content: string }>
+  ): Promise<string> {
     if (!prompt?.trim()) {
       throw new Error("Prompt is required");
     }
 
     try {
-      const result = await this.model.generateContent(prompt);
-      const response = await result.response;
-      return response.text();
+      if (history && history.length > 0) {
+        // Cap history to prevent context limit failures
+        const MAX_HISTORY_LENGTH = 10;
+        const recentHistory = history.slice(-MAX_HISTORY_LENGTH);
+
+        const contents = [
+          ...recentHistory.map((msg) => ({
+            role: msg.role === "assistant" ? "model" : "user",
+            parts: [{ text: msg.content }],
+          })),
+          { role: "user", parts: [{ text: prompt }] },
+        ];
+
+        const result = await this.model.generateContent({ contents });
+        const response = await result.response;
+        return response.text();
+      } else {
+        const result = await this.model.generateContent(prompt);
+        const response = await result.response;
+        return response.text();
+      }
     } catch (error: any) {
       console.error("Gemini raw chat error:", error);
       throw new Error(`AI chat failed: ${error.message}`);
