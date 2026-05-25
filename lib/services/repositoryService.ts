@@ -138,7 +138,6 @@ export class RepositoryService {
     });
 
     if (existingRepository) {
-
       return existingRepository;
     }
 
@@ -205,7 +204,10 @@ export class RepositoryService {
       gitService = await GitService.cloneRepository(repository.url, tempDir, {
         onProgress: (pct, msg) => {
           const analysisPct = 5 + Math.round((pct / 100) * 3);
-          report({ progressPercent: Math.min(8, analysisPct), progressMessage: msg });
+          report({
+            progressPercent: Math.min(8, analysisPct),
+            progressMessage: msg,
+          });
         },
       });
 
@@ -279,7 +281,6 @@ export class RepositoryService {
         (commit: { hash: string }) => !existingHashes.has(commit.hash),
       );
 
-
       let insertedCount = 0;
       let failedCount = 0;
 
@@ -342,16 +343,16 @@ export class RepositoryService {
                 changeType: "added" | "modified" | "deleted";
               }>;
             }) => {
-            const commitId = commitIdByHash.get(commit.hash);
-            if (!commitId || commit.fileChanges.length === 0) return [];
+              const commitId = commitIdByHash.get(commit.hash);
+              if (!commitId || commit.fileChanges.length === 0) return [];
 
-            return commit.fileChanges.map((change) => ({
-              path: change.path,
-              additions: change.additions,
-              deletions: change.deletions,
-              changeType: change.changeType.toUpperCase() as FileChangeType,
-              commitId,
-            }));
+              return commit.fileChanges.map((change) => ({
+                path: change.path,
+                additions: change.additions,
+                deletions: change.deletions,
+                changeType: change.changeType.toUpperCase() as FileChangeType,
+                commitId,
+              }));
             },
           );
 
@@ -362,19 +363,27 @@ export class RepositoryService {
             });
           }
 
-          const pct = 25 + Math.round((Math.min(i + chunk.length, newCommits.length) / totalNewCommits) * 35);
+          const pct =
+            25 +
+            Math.round(
+              (Math.min(i + chunk.length, newCommits.length) /
+                totalNewCommits) *
+                35,
+            );
           await report({
             progressPercent: Math.min(60, pct),
             progressMessage: `Storing commits (${Math.min(i + chunk.length, newCommits.length)}/${newCommits.length})`,
           });
         } catch (error: any) {
           failedCount += chunk.length;
-          console.error(`Failed to insert commit chunk starting at ${i}:`, error.message);
+          console.error(
+            `Failed to insert commit chunk starting at ${i}:`,
+            error.message,
+          );
         }
 
         await yieldIfHighMemory();
       }
-
 
       // Analyze files
       await report({ progressPercent: 65, progressMessage: "Scanning files" });
@@ -406,7 +415,6 @@ export class RepositoryService {
             progressMessage: `Storing files (${insertedSoFar}/${files.length})`,
           });
         }
-       
       } else {
       }
 
@@ -519,7 +527,6 @@ export class RepositoryService {
       });
 
       await report({ progressPercent: 100, progressMessage: "Completed" });
-
     } catch (error: any) {
       console.error(`Error analyzing repository ${repositoryId}:`, error);
       await prisma.repository.update({
@@ -533,7 +540,9 @@ export class RepositoryService {
       if (gitService) {
         await gitService.cleanup();
       } else {
-        await fs.rm(tempDir, { recursive: true, force: true }).catch(() => null);
+        await fs
+          .rm(tempDir, { recursive: true, force: true })
+          .catch(() => null);
       }
     }
   }
@@ -580,10 +589,7 @@ export class RepositoryService {
   async listRepositories(userId: number) {
     const repositories = await prisma.repository.findMany({
       where: { userId },
-      orderBy: [
-        { isPinned: "desc" },
-        { createdAt: "desc" },
-      ],
+      orderBy: [{ isPinned: "desc" }, { createdAt: "desc" }],
       include: {
         _count: {
           select: {
@@ -598,7 +604,7 @@ export class RepositoryService {
           take: 3,
         },
       },
-      orderBy: [{ isPinned: "desc" }, { createdAt: "desc" }],
+      
     });
 
     return repositories;

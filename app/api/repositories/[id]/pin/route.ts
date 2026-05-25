@@ -8,7 +8,7 @@ export const runtime = "nodejs";
 // PATCH /api/repositories/:id/pin — toggle pin state
 export async function PATCH(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: { id: string } },
 ) {
   try {
     const user = await requireAuth(request);
@@ -17,7 +17,7 @@ export async function PATCH(
     if (isNaN(repoId) || repoId <= 0) {
       return NextResponse.json(
         { message: "Invalid repository ID" },
-        { status: 400 }
+        { status: 400 },
       );
     }
 
@@ -30,7 +30,7 @@ export async function PATCH(
     if (!repo) {
       return NextResponse.json(
         { message: "Repository not found" },
-        { status: 404 }
+        { status: 404 },
       );
     }
 
@@ -59,7 +59,7 @@ export async function PATCH(
     console.error("Error toggling pin:", sanitizeError(error));
     return NextResponse.json(
       { message: "Failed to toggle pin" },
-      { status: 500 }
+      { status: 500 },
     );
   }
 }

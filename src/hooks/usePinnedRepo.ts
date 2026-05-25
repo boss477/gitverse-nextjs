@@ -10,7 +10,7 @@ interface UsePinnedRepoReturn {
 
 export function usePinnedRepo(
   repoId: number,
-  initialPinnedState: boolean
+  initialPinnedState: boolean,
 ): UsePinnedRepoReturn {
   const [isPinned, setIsPinned] = useState(initialPinnedState);
   const [isLoading, setIsLoading] = useState(false);
@@ -30,7 +30,7 @@ export function usePinnedRepo(
         {
           withCredentials: true,
           headers: token ? { Authorization: `Bearer ${token}` } : undefined,
-        }
+        },
       );
       // Sync with server response
       setIsPinned(response.data.isPinned);

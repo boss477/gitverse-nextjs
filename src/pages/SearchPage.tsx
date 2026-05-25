@@ -4,7 +4,16 @@ export const dynamic = "force-dynamic";
 
 import { useState, useEffect } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { Search, Grid, List, GitBranch, Clock, Activity, Pin, PinOff } from "lucide-react";
+import {
+  Search,
+  Grid,
+  List,
+  GitBranch,
+  Clock,
+  Activity,
+  Pin,
+  PinOff,
+} from "lucide-react";
 import { DashboardLayout } from "@/components/layout/DashboardLayout";
 import {
   Card,
@@ -42,7 +51,9 @@ export default function SearchPage() {
 
   const [searchQuery, setSearchQuery] = useState(initialUrl);
   const [viewMode, setViewMode] = useState<"grid" | "list">("grid");
-  const [sortBy, setSortBy] = useState<"recent" | "stars" | "name" | "pinned">("pinned");
+  const [sortBy, setSortBy] = useState<"recent" | "stars" | "name" | "pinned">(
+    "pinned",
+  );
   const [repositories, setRepositories] = useState<Repository[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -63,7 +74,9 @@ export default function SearchPage() {
     } catch (error) {
       console.error("Error fetching repositories:", error);
       setRepositories([]);
-      setError("Failed to load repositories. Please check your connection and try again.");
+      setError(
+        "Failed to load repositories. Please check your connection and try again.",
+      );
     } finally {
       setLoading(false);
     }
@@ -73,7 +86,9 @@ export default function SearchPage() {
     try {
       const token = localStorage.getItem("gitverse_token");
       setRepositories((prev) =>
-        prev.map((r) => (r.id === repoId ? { ...r, isPinned: !currentPinned } : r))
+        prev.map((r) =>
+          r.id === repoId ? { ...r, isPinned: !currentPinned } : r,
+        ),
       );
       await axios.patch(
         buildApiUrl(`/api/repositories/${repoId}/pin`),
@@ -81,11 +96,13 @@ export default function SearchPage() {
         {
           withCredentials: true,
           headers: token ? { Authorization: `Bearer ${token}` } : undefined,
-        }
+        },
       );
     } catch (error) {
       setRepositories((prev) =>
-        prev.map((r) => (r.id === repoId ? { ...r, isPinned: currentPinned } : r))
+        prev.map((r) =>
+          r.id === repoId ? { ...r, isPinned: currentPinned } : r,
+        ),
       );
       console.error("Failed to toggle pin:", error);
     }
@@ -95,7 +112,9 @@ export default function SearchPage() {
     ? repositories.filter(
         (repo) =>
           repo.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-          (repo.description || "").toLowerCase().includes(searchQuery.toLowerCase())
+          (repo.description || "")
+            .toLowerCase()
+            .includes(searchQuery.toLowerCase()),
       )
     : [];
 
@@ -156,7 +175,9 @@ export default function SearchPage() {
                 <Button
                   variant="outline"
                   size="sm"
-                  onClick={() => setViewMode(viewMode === "grid" ? "list" : "grid")}
+                  onClick={() =>
+                    setViewMode(viewMode === "grid" ? "list" : "grid")
+                  }
                   aria-label="Toggle view mode"
                 >
                   {viewMode === "grid" ? (
@@ -184,7 +205,8 @@ export default function SearchPage() {
         <div className="flex items-center justify-between">
           <p className="text-sm text-muted-foreground">
             {sortedRepositories.length}{" "}
-            {sortedRepositories.length === 1 ? "repository" : "repositories"} found
+            {sortedRepositories.length === 1 ? "repository" : "repositories"}{" "}
+            found
           </p>
         </div>
 
@@ -257,7 +279,7 @@ export default function SearchPage() {
                     <div className="flex items-center gap-1 text-xs text-muted-foreground">
                       <Clock className="h-3 w-3" />
                       {new Date(
-                        (repo as any).lastAnalyzedAt || (repo as any).createdAt
+                        (repo as any).lastAnalyzedAt || (repo as any).createdAt,
                       ).toLocaleDateString()}
                     </div>
                   </div>
@@ -316,7 +338,8 @@ export default function SearchPage() {
                         <div className="flex items-center gap-1">
                           <Clock className="h-4 w-4" />
                           {new Date(
-                            (repo as any).lastAnalyzedAt || (repo as any).createdAt
+                            (repo as any).lastAnalyzedAt ||
+                              (repo as any).createdAt,
                           ).toLocaleDateString()}
                         </div>
                       </div>
