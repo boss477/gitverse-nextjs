@@ -12,17 +12,8 @@ coverage
 # generated worker output
 dist-worker
 
-# environment files
-.env
-.env.local
-.env*.local
-
 # Vercel
 .vercel
-
-# temporary files
-tmp
-temp
 
 # logs
 npm-debug.log*
