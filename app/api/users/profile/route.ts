@@ -1,7 +1,45 @@
 import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
-import { requireAuth , sanitizeError } from "@/lib/middleware";
+import { Prisma } from "@prisma/client";
+import { requireAuth, sanitizeError } from "@/lib/middleware";
 import bcrypt from "bcryptjs";
+
+const ALLOWED_IMAGE_EXTENSIONS = [".jpg", ".jpeg", ".png", ".webp", ".gif"];
+const ALLOWED_DATA_IMAGE_TYPES = [
+  "data:image/jpeg",
+  "data:image/png",
+  "data:image/webp",
+  "data:image/gif",
+];
+
+function isValidAvatarUrl(avatar: string): boolean {
+  if (avatar.startsWith("data:")) {
+    return ALLOWED_DATA_IMAGE_TYPES.some((type) => avatar.startsWith(type));
+  }
+
+  try {
+    const parsedUrl = new URL(avatar);
+
+  if (!["http:", "https:", "blob:"].includes(parsedUrl.protocol)) {
+  return false;
+}
+
+    if (
+  parsedUrl.protocol !== "blob:" &&
+  (!parsedUrl.hostname || !parsedUrl.hostname.includes("."))
+) {
+  return false;
+}
+
+    const pathname = parsedUrl.pathname.toLowerCase();
+
+    return ALLOWED_IMAGE_EXTENSIONS.some((extension) =>
+      pathname.endsWith(extension)
+    );
+  } catch {
+    return false;
+  }
+}
 
 export async function PUT(request: NextRequest) {
   try {
@@ -12,6 +50,23 @@ export async function PUT(request: NextRequest) {
     if (!name || !email) {
       return NextResponse.json(
         { error: "Name and email are required" },
+        { status: 400 }
+      );
+    }
+
+ if ("avatar" in body && avatar !== undefined && avatar !== null && typeof avatar !== "string") {
+      return NextResponse.json(
+        { error: "Avatar must be a valid image URL" },
+        { status: 400 }
+      );
+    }
+
+    if (typeof avatar === "string" && avatar && !isValidAvatarUrl(avatar)) {
+      return NextResponse.json(
+        {
+          error:
+            "Avatar must be a valid HTTP/HTTPS image URL or supported image data URL",
+        },
         { status: 400 }
       );
     }
@@ -49,7 +104,7 @@ export async function PUT(request: NextRequest) {
       if (!newPassword || typeof newPassword !== "string") {
         return NextResponse.json(
           {
-            message:
+            error:
               "Changing email will unlink your Google account. Please provide newPassword to set a new password.",
           },
           { status: 400 }
@@ -58,24 +113,23 @@ export async function PUT(request: NextRequest) {
 
       if (newPassword.length < 8) {
         return NextResponse.json(
-          { message: "Password must be at least 8 characters" },
+          { error: "Password must be at least 8 characters" },
           { status: 400 }
         );
       }
 
-      // Unlink Google account (prevents Google sign-in for this user unless re-linked).
       await prisma.account.deleteMany({
         where: { userId: user.userId, provider: "google" },
       });
     }
 
-    const updateData: any = { name, email };
+    const updateData: Prisma.UserUpdateInput = { name, email };
 
     if (isEmailChanging && hasLinkedGoogle) {
       updateData.passwordHash = await bcrypt.hash(newPassword, 10);
     }
 
-    if (avatar && (avatar.startsWith("data:") || avatar.startsWith("http"))) {
+    if (avatar) {
       updateData.image = avatar;
     }
 
