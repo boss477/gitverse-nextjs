@@ -1,6 +1,6 @@
 import React from 'react'
 import Link from 'next/link'
-import { GitBranch, Twitter, Github, Linkedin, Mail } from 'lucide-react'
+import { GitBranch, Github, Linkedin, Mail } from 'lucide-react'
 
 export const Footer: React.FC = () => {
   return (
@@ -106,33 +106,38 @@ export const Footer: React.FC = () => {
 
         {/* Bottom Section */}
         <div className="mt-12 pt-8 border-t border-border/50 flex flex-col md:flex-row justify-between items-center">
-          <p className="text-sm">© 2026 GitVerse. All rights reserved.</p>
+          <p className="text-sm">&copy; 2026 GitVerse. All rights reserved.</p>
           <div className="flex space-x-6 mt-4 md:mt-0">
             <a
-              href="https://twitter.com"
+              href="https://x.com/nisshchayarathi"
               target="_blank"
               rel="noopener noreferrer"
+              aria-label="X (formerly Twitter)"
               className="hover:text-primary transition-colors"
             >
-              <Twitter size={20} />
+              <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
+                <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-4.714-6.231-5.401 6.231H2.744l7.737-8.835L1.254 2.25H8.08l4.253 5.622 5.911-5.622Zm-1.161 17.52h1.833L7.084 4.126H5.117z"/>
+              </svg>
             </a>
             <a
               href="https://github.com/nisshchayarathi/gitverse-nextjs"
               target="_blank"
               rel="noopener noreferrer"
+              aria-label="GitHub"
               className="hover:text-primary transition-colors"
             >
               <Github size={20} />
             </a>
             <a
-              href="https://linkedin.com"
+              href="https://www.linkedin.com/in/nisshchayarathi"
               target="_blank"
               rel="noopener noreferrer"
+              aria-label="LinkedIn"
               className="hover:text-primary transition-colors"
             >
               <Linkedin size={20} />
             </a>
-            <a href="mailto:hello@gitverse.com" className="hover:text-primary transition-colors">
+            <a href="mailto:hello@gitverse.com" aria-label="Email" className="hover:text-primary transition-colors">
               <Mail size={20} />
             </a>
           </div>
