@@ -27,19 +27,19 @@ export const Footer: React.FC = () => {
             <h3 className="font-semibold text-foreground mb-4">Product</h3>
             <ul className="space-y-2 text-sm">
               <li>
-                <a href="#features" className="hover:text-primary transition-colors">
+                <Link href="/#features" className="hover:text-primary transition-colors">
                   Features
-                </a>
+                </Link>
               </li>
               <li>
-                <a href="#pricing" className="hover:text-primary transition-colors">
+                <Link href="/#pricing" className="hover:text-primary transition-colors">
                   Pricing
-                </a>
+                </Link>
               </li>
               <li>
-                <a href="#how-it-works" className="hover:text-primary transition-colors">
+                <Link href="/#how-it-works" className="hover:text-primary transition-colors">
                   How it Works
-                </a>
+                </Link>
               </li>
               <li>
                 <Link href="/docs" className="hover:text-primary transition-colors">
@@ -81,12 +81,12 @@ export const Footer: React.FC = () => {
             <h3 className="font-semibold text-foreground mb-4">Legal</h3>
             <ul className="space-y-2 text-sm">
               <li>
-                <Link href="/privacy" className="hover:text-primary transition-colors">
+                <Link href="/privacy-policy" className="hover:text-primary transition-colors">
                   Privacy Policy
                 </Link>
               </li>
               <li>
-                <Link href="/terms" className="hover:text-primary transition-colors">
+                <Link href="/terms-of-service" className="hover:text-primary transition-colors">
                   Terms of Service
                 </Link>
               </li>
@@ -96,7 +96,7 @@ export const Footer: React.FC = () => {
                 </Link>
               </li>
               <li>
-                <Link href="/cookies" className="hover:text-primary transition-colors">
+                <Link href="/cookie-policy" className="hover:text-primary transition-colors">
                   Cookie Policy
                 </Link>
               </li>
@@ -117,7 +117,7 @@ export const Footer: React.FC = () => {
               <Twitter size={20} />
             </a>
             <a
-              href="https://github.com"
+              href="https://github.com/nisshchayarathi/gitverse-nextjs"
               target="_blank"
               rel="noopener noreferrer"
               className="hover:text-primary transition-colors"
