@@ -11,14 +11,14 @@ export async function POST(request: NextRequest) {
 
     if (!newPassword) {
       return NextResponse.json(
-        { message: "New password is required" },
+        { error: "New password is required" },
         { status: 400 }
       );
     }
 
     if (newPassword.length < 8) {
       return NextResponse.json(
-        { message: "Password must be at least 8 characters" },
+        { error: "Password must be at least 8 characters" },
         { status: 400 }
       );
     }
@@ -45,17 +45,23 @@ export async function POST(request: NextRequest) {
         );
       }
 
-      const isPasswordValid = await bcrypt.compare(
-        currentPassword,
-        passwordHash
+    if (!currentPassword) {
+      return NextResponse.json(
+        { error: "Current password is required" },
+        { status: 400 }
       );
+    }
 
-      if (!isPasswordValid) {
-        return NextResponse.json(
-          { message: "Current password is incorrect" },
-          { status: 401 }
-        );
-      }
+    const isPasswordValid = await bcrypt.compare(
+      currentPassword,
+      passwordHash,
+    );
+
+    if (!isPasswordValid) {
+      return NextResponse.json(
+        { error: "Current password is incorrect" },
+        { status: 401 }
+      );
     }
 
     const hashedPassword = await bcrypt.hash(newPassword, 10);
@@ -75,7 +81,7 @@ export async function POST(request: NextRequest) {
     console.error("Error changing password:", sanitizeError(error));
 
     return NextResponse.json(
-      { message: "Failed to change password" },
+      { error: "Failed to change password" },
       { status: 500 }
     );
   }
