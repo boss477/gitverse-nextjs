@@ -1,7 +1,7 @@
 "use client";
 
 export const dynamic = "force-dynamic";
-
+import { toast } from "@/hooks/use-toast";
 import { useState, useEffect } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Search, Grid, List, GitBranch, Clock, Activity } from "lucide-react";
@@ -62,15 +62,24 @@ export default function SearchPage() {
       const repos = response.data.repositories || [];
       setRepositories(Array.isArray(repos) ? repos : []);
     }  
-    catch (error) {
+    catch (error: any) {
   console.error("Error fetching repositories:", error);
 
   setRepositories([]);
 
-  setError(
-    "Failed to load repositories. Please check your connection and try again."
-  );
+  const message =
+    error?.response?.data?.message ||
+    "Failed to load repositories. Please check your connection and try again.";
+
+  setError(message);
+
+  toast({
+    title: "Error",
+    description: message,
+    variant: "destructive",
+  });
 }
+
 finally {
       setLoading(false);
     }

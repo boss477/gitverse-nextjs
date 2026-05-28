@@ -1,4 +1,9 @@
-import { exec, spawn, type ExecOptions, type SpawnOptions } from "child_process";
+import {
+  exec,
+  spawn,
+  type ExecOptions,
+  type SpawnOptions,
+} from "child_process";
 import { promisify } from "util";
 import * as path from "path";
 import * as fs from "fs/promises";
@@ -27,7 +32,9 @@ function countLinesReadStream(filePath: string): Promise<number> {
 
     stream.on("data", (chunk: string) => {
       lines += (remaining + chunk).split("\n").length - 1;
-      remaining = chunk.endsWith("\n") ? "" : chunk.slice(chunk.lastIndexOf("\n") + 1);
+      remaining = chunk.endsWith("\n")
+        ? ""
+        : chunk.slice(chunk.lastIndexOf("\n") + 1);
     });
 
     stream.on("end", () => {
@@ -40,12 +47,12 @@ function countLinesReadStream(filePath: string): Promise<number> {
 
 function execPromise(
   command: string,
-  options: ExecOptions & {signal?: AbortSignal} = {},
+  options: ExecOptions & { signal?: AbortSignal } = {},
 ): Promise<{ stdout: string; stderr: string }> {
   return execPromiseRaw(command, {
     ...DEFAULT_EXEC_OPTIONS,
     ...options,
-    signal:options.signal,
+    signal: options.signal,
     timeout: options.timeout ?? DEFAULT_GIT_TIMEOUT_MS,
     env: {
       ...process.env,
@@ -174,9 +181,9 @@ export class GitService {
   private repoPath: string;
   private signal?: AbortSignal;
 
-  constructor(repoPath: string, signal?:AbortSignal) {
+  constructor(repoPath: string, signal?: AbortSignal) {
     this.repoPath = repoPath;
-    this.signal=signal;
+    this.signal = signal;
   }
 
   //helper to wrap execpromise with signal
@@ -198,7 +205,7 @@ export class GitService {
       depth?: number;
       noSingleBranch?: boolean;
       onProgress?: (percent: number, message: string) => void;
-      signal?:AbortSignal;
+      signal?: AbortSignal;
     },
   ): Promise<GitService> {
     await fs.mkdir(destination, { recursive: true });
@@ -206,13 +213,21 @@ export class GitService {
     const noSingleBranch = opts?.noSingleBranch ?? true;
 
     const args = [
-      "-c", "credential.interactive=never",
-      "-c", "core.askPass=",
-      "-c", "filter.lfs.required=false",
-      "-c", "filter.lfs.smudge=",
-      "-c", "filter.lfs.process=",
-      "clone", "--no-tags", "--progress",
-      "--depth", String(depth),
+      "-c",
+      "credential.interactive=never",
+      "-c",
+      "core.askPass=",
+      "-c",
+      "filter.lfs.required=false",
+      "-c",
+      "filter.lfs.smudge=",
+      "-c",
+      "filter.lfs.process=",
+      "clone",
+      "--no-tags",
+      "--progress",
+      "--depth",
+      String(depth),
       noSingleBranch ? "--no-single-branch" : "--single-branch",
       url,
       destination,
@@ -255,6 +270,18 @@ export class GitService {
           resolve(new GitService(destination, opts?.signal));
         } else {
           const msg = stderr.trim().split("\n").pop() || `exit code ${code}`;
+
+          if (
+            msg.toLowerCase().includes("rate limit") ||
+            msg.toLowerCase().includes("403")
+          ) {
+            reject(
+              new Error(
+                "GitHub API rate limit exceeded. Please try again later.",
+              ),
+            );
+            return;
+          }
           reject(new Error(`Failed to clone repository: ${msg}`));
         }
       });
@@ -312,10 +339,7 @@ export class GitService {
 
       const branches: BranchData[] = refEntries.map((entry, i) => {
         const result = countResults[i];
-        const commitCount =
-          result.status === "fulfilled"
-            ? result.value
-            : 0;
+        const commitCount = result.status === "fulfilled" ? result.value : 0;
 
         if (result.status === "rejected") {
           console.warn(
@@ -351,10 +375,14 @@ export class GitService {
     const format = "%H|%h|%an|%ae|%aI|%s|%b|%P|%D";
 
     const args = [
-      "-C", this.repoPath,
-      "log", `--format=${format}`,
-      "--shortstat", "--numstat",
-      "-n", String(effectiveLimit),
+      "-C",
+      this.repoPath,
+      "log",
+      `--format=${format}`,
+      "--shortstat",
+      "--numstat",
+      "-n",
+      String(effectiveLimit),
       branch,
     ];
 
@@ -394,8 +422,15 @@ export class GitService {
         if (!currentHeader) return;
 
         const {
-          hash, shortHash, authorName, authorEmail, date,
-          message, description, parentsStr, refsStr,
+          hash,
+          shortHash,
+          authorName,
+          authorEmail,
+          date,
+          message,
+          description,
+          parentsStr,
+          refsStr,
         } = currentHeader;
 
         const parents = parentsStr
@@ -517,11 +552,13 @@ export class GitService {
         stderr += chunk.toString();
       });
 
-
-
       child.on("exit", (code) => {
         if (code !== 0 && commits.length === 0) {
-          reject(new Error(`Failed to get commits: git exited with code ${code}: ${stderr}`));
+          reject(
+            new Error(
+              `Failed to get commits: git exited with code ${code}: ${stderr}`,
+            ),
+          );
         }
       });
     });
@@ -730,16 +767,15 @@ export class GitService {
         language: string | null;
       }[] = [];
       const filePaths = stdout.trim().split("\n").filter(Boolean);
-      const scopedPrefix =
-        opts?.targetDirectory?.trim()
-          ? `${opts.targetDirectory.trim().replace(/\\/g, "/").replace(/\/+$/, "")}/`
-          : null;
+      const scopedPrefix = opts?.targetDirectory?.trim()
+        ? `${opts.targetDirectory.trim().replace(/\\/g, "/").replace(/\/+$/, "")}/`
+        : null;
 
       // Process in chunks to avoid blocking the event loop on huge monorepos
       const concurrencyLimit = 50;
       for (let i = 0; i < filePaths.length; i += concurrencyLimit) {
         const batch = filePaths.slice(i, i + concurrencyLimit);
-        
+
         await Promise.all(
           batch.map(async (filePath) => {
             // Skip ignored files
@@ -783,7 +819,7 @@ export class GitService {
               // Skip files that can't be accessed
               return;
             }
-          })
+          }),
         );
       }
 
@@ -806,7 +842,10 @@ export class GitService {
       for (const file of files) {
         if (!file.language) continue;
 
-        const stats = languageStats.get(file.language) || { bytes: 0, lines: 0 };
+        const stats = languageStats.get(file.language) || {
+          bytes: 0,
+          lines: 0,
+        };
         stats.bytes += file.size;
         stats.lines += file.lines;
         languageStats.set(file.language, stats);

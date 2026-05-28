@@ -1,7 +1,6 @@
 "use client";
 
 export const dynamic = "force-dynamic";
-import { Skeleton } from "@/components/ui/Skeleton";
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import {
@@ -30,7 +29,6 @@ import { useAuth } from "@/contexts/AuthContext";
 import { buildApiUrl } from "@/services/apiConfig";
 import axios from "axios";
 import { toast } from "@/hooks/use-toast";
-
 interface Repository {
   id: string;
   name: string;
@@ -100,11 +98,22 @@ export default function Dashboard() {
         headers: { Authorization: `Bearer ${token}` },
       });
       // API returns { repositories: [...] }
-      const repos = response.data.repositories || [];
+      const repos =
+        response.data.data?.repositories || response.data.repositories || [];
       setRepositories(Array.isArray(repos) ? repos : []);
-    } catch (error) {
+    } catch (error: any) {
       console.error("Error fetching repositories:", error);
+
       setRepositories([]);
+
+      const errMsg =
+        error?.response?.data?.message || "Failed to load repositories";
+
+      toast({
+        title: "Error",
+        description: errMsg,
+        variant: "destructive",
+      });
     } finally {
       setLoading(false);
     }
@@ -116,7 +125,7 @@ export default function Dashboard() {
   const totalContributors = Array.isArray(repositories)
     ? repositories.reduce(
         (sum, r: any) => sum + (r._count?.contributors || 0),
-        0
+        0,
       )
     : 0;
   const totalFiles = Array.isArray(repositories)
@@ -158,7 +167,7 @@ export default function Dashboard() {
     const now = new Date();
     const then = new Date(date);
     const diffInMinutes = Math.floor(
-      (now.getTime() - then.getTime()) / (1000 * 60)
+      (now.getTime() - then.getTime()) / (1000 * 60),
     );
 
     if (diffInMinutes < 1) return "Just now";
@@ -182,7 +191,7 @@ export default function Dashboard() {
         }))
     : [];
 
-    const handleAnalyze = async () => {
+  const handleAnalyze = async () => {
     if (!repoUrl.trim()) return;
 
     setAnalyzing(true);
@@ -203,12 +212,12 @@ export default function Dashboard() {
         },
         {
           headers: { Authorization: `Bearer ${token}` },
-        }
+        },
       );
 
       // Check if this is an existing repository
       const isExisting = repositories.some(
-        (r: any) => r.url === repoUrl.trim()
+        (r: any) => r.url === repoUrl.trim(),
       );
 
       // Refresh repositories list
@@ -226,7 +235,11 @@ export default function Dashboard() {
       setRepoScope("");
     } catch (error: any) {
       console.error("Error creating repository:", error);
-      const errMsg = error.response?.data?.error || error.response?.data?.message || error.message || "Failed to analyze repository";
+      const errMsg =
+        error.response?.data?.error ||
+        error.response?.data?.message ||
+        error.message ||
+        "Failed to analyze repository";
       toast({
         title: "Analysis Failed",
         description: errMsg,
@@ -236,61 +249,59 @@ export default function Dashboard() {
       setAnalyzing(false);
     }
   };
-if (loading) {
-  return (
-    <DashboardLayout>
-      <div className="space-y-6">
-        
-        {/* Welcome skeleton */}
-        <div className="space-y-2">
-          <Skeleton width="250px" height="28px" />
-          <Skeleton width="400px" height="18"/>
-        </div>
+  if (loading) {
+    return (
+      <DashboardLayout>
+        <div className="space-y-6">
+          {/* Welcome skeleton */}
+          <div className="space-y-2">
+            <Skeleton width="250px" height="28px" />
+            <Skeleton width="400px" height="18" />
+          </div>
 
-        {/* Input skeleton */}
-        <div className="p-6 border rounded-lg space-y-3">
-          <Skeleton width="100%" height="40" />
-          <Skeleton width="180" height="40" />
-        </div>
+          {/* Input skeleton */}
+          <div className="p-6 border rounded-lg space-y-3">
+            <Skeleton width="100%" height="40" />
+            <Skeleton width="180" height="40" />
+          </div>
 
-        {/* Stats skeleton */}
-        <div className="grid grid-cols-4 gap-4">
-          {Array.from({ length: 4 }).map((_, i) => (
-            <div key={i} className="p-4 border rounded-lg space-y-3">
-              <Skeleton width="60%" height="16" />
-              <Skeleton width="40%" height="28" />
-              <Skeleton width="80%" height="12" />
-            </div>
-          ))}
-        </div>
-
-        {/* Cards skeleton */}
-        <div className="grid grid-cols-3 gap-6">
-          <div className="col-span-2 space-y-3">
-            <Skeleton width="40%" height="20" />
-            {Array.from({ length: 3 }).map((_, i) => (
-              <div key={i} className="p-4 border rounded-lg space-y-2">
-                <Skeleton width="30%" height="18" />
-                <Skeleton width="70%" height="14" />
+          {/* Stats skeleton */}
+          <div className="grid grid-cols-4 gap-4">
+            {Array.from({ length: 4 }).map((_, i) => (
+              <div key={i} className="p-4 border rounded-lg space-y-3">
+                <Skeleton width="60%" height="16" />
+                <Skeleton width="40%" height="28" />
+                <Skeleton width="80%" height="12" />
               </div>
             ))}
           </div>
 
-          <div className="space-y-3">
-            <Skeleton width="50%" height="20" />
-            {Array.from({ length: 4 }).map((_, i) => (
-              <Skeleton key={i} width="100%" height="40" />
-            ))}
+          {/* Cards skeleton */}
+          <div className="grid grid-cols-3 gap-6">
+            <div className="col-span-2 space-y-3">
+              <Skeleton width="40%" height="20" />
+              {Array.from({ length: 3 }).map((_, i) => (
+                <div key={i} className="p-4 border rounded-lg space-y-2">
+                  <Skeleton width="30%" height="18" />
+                  <Skeleton width="70%" height="14" />
+                </div>
+              ))}
+            </div>
+
+            <div className="space-y-3">
+              <Skeleton width="50%" height="20" />
+              {Array.from({ length: 4 }).map((_, i) => (
+                <Skeleton key={i} width="100%" height="40" />
+              ))}
+            </div>
           </div>
         </div>
-
-      </div>
-    </DashboardLayout>
-  );
-}
+      </DashboardLayout>
+    );
+  }
   return (
     <DashboardLayout>
-    <div className="min-h-screen bg-background"></div>
+      <div className="min-h-screen bg-background"></div>
       <div className="space-y-6">
         {/* Welcome Section */}
         <div>
@@ -333,9 +344,7 @@ if (loading) {
                 onKeyPress={(e) => e.key === "Enter" && handleAnalyze()}
               />
             </div>
-            <div className="mt-3">
-              <ShortcutHint />
-            </div>
+           
           </CardContent>
         </Card>
 
@@ -361,12 +370,12 @@ if (loading) {
                     ) : (
                       <>
                         <p className="text-2xl sm:text-3xl font-heading font-bold break-words">
-                        {stat.value}
+                          {stat.value}
                         </p>
 
                         <p className="text-xs text-accent mt-1 flex items-center gap-1 flex-wrap">
-                        <TrendingUp className="h-3 w-3 flex-shrink-0" />
-                        <span className="truncate">{stat.change}</span>
+                          <TrendingUp className="h-3 w-3 flex-shrink-0" />
+                          <span className="truncate">{stat.change}</span>
                         </p>
                       </>
                     )}
@@ -434,10 +443,12 @@ if (loading) {
                   description="You haven't analyzed any repositories yet. Enter a GitHub URL above to get started!"
                   actionLabel="Analyze Repository"
                   onAction={() => {
-                    const input = document.querySelector('input[type="url"]') as HTMLInputElement;
+                    const input = document.querySelector(
+                      'input[type="url"]',
+                    ) as HTMLInputElement;
                     if (input) {
                       input.focus();
-                      window.scrollTo({ top: 0, behavior: 'smooth' });
+                      window.scrollTo({ top: 0, behavior: "smooth" });
                     }
                   }}
                 />
@@ -480,7 +491,7 @@ if (loading) {
                           <Clock className="h-3 w-3 sm:h-4 sm:w-4" />
                           {formatTimeAgo(
                             (repo as any).lastAnalyzedAt ||
-                              (repo as any).createdAt
+                              (repo as any).createdAt,
                           )}
                         </div>
                       </div>
@@ -517,24 +528,27 @@ if (loading) {
               ) : (
                 <div className="space-y-3">
                   {recentActivity.map((activity, index) => (
-                  <div key={index} className="flex items-start gap-2 sm:gap-3">
-                    <div className="mt-1 p-1.5 rounded-full bg-accent/10 flex-shrink-0">
-                      <Activity className="h-2.5 w-2.5 sm:h-3 sm:w-3 text-accent" />
+                    <div
+                      key={index}
+                      className="flex items-start gap-2 sm:gap-3"
+                    >
+                      <div className="mt-1 p-1.5 rounded-full bg-accent/10 flex-shrink-0">
+                        <Activity className="h-2.5 w-2.5 sm:h-3 sm:w-3 text-accent" />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-xs sm:text-sm break-words">
+                          <span className="font-medium">{activity.action}</span>{" "}
+                          <span className="text-muted-foreground truncate">
+                            {activity.repo}
+                          </span>
+                        </p>
+                        <p className="text-xs text-muted-foreground">
+                          {activity.time}
+                        </p>
+                      </div>
                     </div>
-                    <div className="flex-1 min-w-0">
-                      <p className="text-xs sm:text-sm break-words">
-                        <span className="font-medium">{activity.action}</span>{" "}
-                        <span className="text-muted-foreground truncate">
-                          {activity.repo}
-                        </span>
-                      </p>
-                      <p className="text-xs text-muted-foreground">
-                        {activity.time}
-                      </p>
-                    </div>
-                  </div>
-                ))}
-              </div>
+                  ))}
+                </div>
               )}
             </CardContent>
           </Card>
