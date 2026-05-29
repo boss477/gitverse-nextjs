@@ -48,6 +48,7 @@ model User {
   githubAccount         GitHubAccount?
   githubRepos           GitHubRepo[]
   loginAttempts         LoginAttempt[]
+  aiRequestLogs         AiRequestLog[]
 
   @@map("users")
 }
@@ -411,6 +412,21 @@ model LoginAttempt {
   @@index([email, createdAt(sort: Desc)])
   @@index([createdAt])
   @@map("login_attempts")
+}
+
+model AiRequestLog {
+  id        Int      @id @default(autoincrement())
+  userId    Int?
+  ip        String
+  endpoint  String
+  createdAt DateTime @default(now()) @map("created_at")
+
+  user      User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([userId, createdAt(sort: Desc)])
+  @@index([ip, createdAt(sort: Desc)])
+  @@index([createdAt])
+  @@map("ai_request_logs")
 }
 
 model WebhookEvent {

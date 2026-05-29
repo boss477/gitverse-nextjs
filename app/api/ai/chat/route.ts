@@ -2,15 +2,12 @@ import { NextRequest, NextResponse } from "next/server";
 import { isHttpError, requireAuth, sanitizeError } from "@/lib/middleware";
 import { getGeminiService } from "@/lib/services/geminiService";
 import { repositoryService } from "@/lib/services/repositoryService";
-import { createRateLimiter } from "@/lib/utils/ipRateLimit";
+import { checkAiRateLimit, logAiRequest } from "@/lib/utils/ipRateLimit";
+import { getClientIp } from "@/lib/services/rateLimitService";
 import {
   validateContentType,
   AI_REQUEST_LIMITS,
 } from "@/lib/utils/aiRequestValidation";
-
-// Rate limiter: 20 requests per user per minute across all AI chat calls.
-// Prevents a single authenticated user from burning Gemini quota unchecked.
-const aiChatLimiter = createRateLimiter({ windowMs: 60_000, maxRequests: 20 });
 
 // Allowed roles in the conversation history. Rejecting "system" entries from
 // client payloads prevents prompt injection via injected context.
@@ -20,8 +17,11 @@ export async function POST(request: NextRequest) {
   try {
     const user = await requireAuth(request);
 
-    // Per-user rate limiting
-    if (!aiChatLimiter.check(user.userId)) {
+    // Per-user rate limiting (DB-backed, shared across serverless containers)
+    const allowed = await checkAiRateLimit(
+      String(user.userId), "userId", "chat", 20, 60_000
+    );
+    if (!allowed) {
       return NextResponse.json(
         { error: "Too many requests. Please wait before sending another message." },
         { status: 429 }
@@ -130,6 +130,12 @@ export async function POST(request: NextRequest) {
       question,
       conversationHistory,
       context,
+    });
+
+    void logAiRequest({
+      userId: user.userId,
+      ip: getClientIp(request),
+      endpoint: "chat",
     });
 
     return NextResponse.json({ response, question });
