@@ -170,6 +170,39 @@ User Question: ${message}
     }
   }
 
+  async compareRepositories(repositoryIds: number[]): Promise<string> {
+    try {
+      const res = await fetch("/api/ai/compare", {
+        method: "POST",
+        credentials: "include",
+        headers: {
+          "Content-Type": "application/json",
+          ...this.getAuthHeaders(),
+        },
+        body: JSON.stringify({ repositoryIds }),
+      });
+
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        throw new Error(
+          data?.error || "Failed to compare repositories"
+        );
+      }
+
+      const text = data?.comparison;
+      if (typeof text !== "string") {
+        throw new Error("Invalid response from AI service");
+      }
+
+      return text;
+    } catch (error) {
+      console.error("Repository comparison error:", error);
+      throw new Error(
+        error instanceof Error ? error.message : "Failed to compare repositories"
+      );
+    }
+  }
+
   getChatHistory(): ChatMessage[] {
     return [];
   }

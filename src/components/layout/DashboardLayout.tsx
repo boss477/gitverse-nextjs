@@ -13,6 +13,7 @@ import {
   User,
   ChevronLeft,
   Menu,
+  GitCompare,
 } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import {
@@ -53,6 +54,7 @@ export const DashboardLayout: React.FC<DashboardLayoutProps> = ({
 
   const navItems = [
     { icon: LayoutDashboard, label: "Visualise", path: "/dashboard" },
+    { icon: GitCompare, label: "Compare", path: "/compare" },
     { icon: Search, label: "Search", path: "/search" },
     { icon: GitPullRequest, label: "Contribute", path: "/contribute" },
     { icon: Settings, label: "Settings", path: "/settings" },
