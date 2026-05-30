@@ -115,10 +115,7 @@ async function handlePost(request: NextRequest) {
       where: {
         repoFullName,
         enabled: true,
-        OR: [
-          { installationId: BigInt(installationId) },
-          { installationId: null },
-        ],
+        installationId: BigInt(installationId),
       },
       orderBy: [{ updatedAt: "desc" }],
     });
@@ -130,16 +127,6 @@ async function handlePost(request: NextRequest) {
       });
       return NextResponse.json({ ok: true, ignored: true, reason: "repo_not_enabled" });
     }
-
-    // Backfill installationId for future lookups.
-    await prisma.gitHubRepo.updateMany({
-      where: {
-        repoFullName,
-        enabled: true,
-        installationId: null,
-      },
-      data: { installationId: BigInt(installationId) },
-    });
 
     const app = new GitHubAppService();
     const installationToken = await app.getInstallationAccessToken(installationId);
