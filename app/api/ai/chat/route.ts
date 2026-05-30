@@ -195,7 +195,7 @@ Do not include any Markdown formatting like \`\`\`json, explanation, or extra ch
         const selectionResult = await gemini.chatRaw(fileSelectionPrompt);
         let selectedPaths: string[] = [];
         try {
-          const cleanedJson = selectionResult.replace(/```json|```/g, "").trim();
+          const cleanedJson = selectionResult.text.replace(/```json|```/g, "").trim();
           selectedPaths = JSON.parse(cleanedJson);
         } catch {
           selectedPaths = candidatePaths.slice(0, 2);
@@ -245,7 +245,8 @@ User Question: ${question}
 `;
 
     // Invoke Gemini with history and grounded context
-    const response = await getGeminiService().chatRaw(enhancedPrompt, standardizedHistory);
+    const chatResult = await getGeminiService().chatRaw(enhancedPrompt, standardizedHistory);
+    const response = chatResult.text;
 
     void logAiRequest({
       userId: user.userId,

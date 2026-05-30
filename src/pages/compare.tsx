@@ -240,7 +240,7 @@ export default function CompareRepositories() {
                   <Info className="h-12 w-12 text-muted-foreground mb-4" />
                   <h3 className="font-semibold text-lg text-foreground">No Repositories Available</h3>
                   <p className="text-sm text-muted-foreground mt-1 max-w-sm">
-                    You haven't added or analyzed any repositories yet. Head to the visualize page to analyze one!
+                    You haven&apos;t added or analyzed any repositories yet. Head to the visualize page to analyze one!
                   </p>
                 </div>
               ) : (
@@ -513,7 +513,7 @@ export default function CompareRepositories() {
                   <div>
                     <h3 className="text-xl font-bold text-foreground">Principal AI Architecture Comparison</h3>
                     <p className="text-xs text-muted-foreground mt-0.5">
-                      Gemini's deep side-by-side codebase architectural summary and integration potential assessments.
+                      Gemini&apos;s deep side-by-side codebase architectural summary and integration potential assessments.
                     </p>
                   </div>
                 </div>

@@ -646,6 +646,7 @@ export const RepositoryOverview = ({
                             : "";
 
                       return (
+                        // eslint-disable-next-line @next/next/no-img-element
                         <img
                           src={resolved}
                           alt={alt || ""}
@@ -888,6 +889,7 @@ export const RepositoryOverview = ({
                       ),
                       img: ({ src, alt, title, ...props }) => {
                         const resolved = resolveRepoRelativeUrl(String(src || ""), "image");
+                        // eslint-disable-next-line @next/next/no-img-element
                         return <img src={resolved} alt={alt || ""} title={title} loading="lazy" className="max-w-full h-auto rounded-md my-3" {...props} />;
                       },
                       code: ({ className, children, ...props }) => {

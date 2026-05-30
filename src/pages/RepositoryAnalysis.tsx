@@ -126,6 +126,7 @@ export default function RepositoryAnalysis() {
 
   useEffect(() => {
     fetchRepository();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id]);
 
   useEffect(() => {
@@ -178,6 +179,7 @@ export default function RepositoryAnalysis() {
     return () => {
       stopped = true;
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [repository?.status, repository?.latestJob?.id, job?.id, job?.status]);
 
   const fetchRepository = async () => {

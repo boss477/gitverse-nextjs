@@ -10,6 +10,10 @@ import { recoverStuckEvents } from "@/lib/services/webhookRecoveryService";
 import { isAxiosError } from "axios";
 import { sanitizeError } from "@/lib/middleware";
 import crypto from "crypto";
+import { QuotaService } from "@/lib/services/quotaService";
+import { IssueTriageService } from "@/lib/services/issue-triage";
+import { ImpactAnalysisService } from "@/lib/services/impact-analysis";
+import { SelfHealingService } from "@/lib/services/self-healing";
 
 export const runtime = "nodejs";
 export const maxDuration = 300; // 5 minutes max duration for Vercel
@@ -102,6 +106,11 @@ export async function POST(request: NextRequest) {
     owner = payload.repository?.owner?.login;
     repo = payload.repository?.name;
     number = payload.pull_request?.number;
+    const owner = payload.repository?.owner?.login;
+    const repo = payload.repository?.name;
+    const pullNumber = payload.pull_request?.number;
+    const issueNumber = payload.issue?.number;
+    const number = pullNumber || issueNumber;
     const installationId = payload.installation?.id;
 
     if (!owner || !repo || !number || !installationId) {
@@ -150,6 +159,72 @@ export async function POST(request: NextRequest) {
       if (!headSha) {
         throw new Error("Missing head SHA from GitHub PR response");
       }
+    const github = new GitHubService(installationToken);
+
+    // 1. AI Kill Switch Check
+    if (process.env.DISABLE_AI_ANALYSIS === "true") {
+      await prisma.webhookEvent.update({
+        where: { id: eventId },
+        data: { status: "completed", error: "AI analysis is globally disabled" },
+      });
+      return NextResponse.json({ ok: true, ignored: true, reason: "ai_disabled" });
+    }
+
+    // 2. Installation Quota Enforcement
+    const hasQuota = await QuotaService.checkAndReserveQuota(BigInt(installationId));
+    if (!hasQuota) {
+      await prisma.webhookEvent.update({
+        where: { id: eventId },
+        data: { status: "rate_limited", error: "AI usage quota exhausted" },
+      });
+
+      const warningPosted = await QuotaService.hasWarningBeenPosted(BigInt(installationId));
+      if (!warningPosted) {
+        const comment = "⚠️ **GitVerse AI Quota Exhausted**\n\nThe AI analysis quota has been temporarily exhausted for this installation. Automatic PR reviews will resume when the quota window resets.";
+        try {
+          await github.postPullRequestComment(owner, repo, number, comment);
+          await QuotaService.markWarningPosted(BigInt(installationId));
+        } catch (e) {
+          console.error("Failed to post quota warning comment:", e);
+        }
+      }
+      return NextResponse.json({ ok: true, ignored: true, reason: "quota_exhausted" });
+    }
+
+    if (webhookEvent.event === "issues") {
+      if (!issueNumber) throw new Error("Missing issue number");
+      const issueTitle = payload.issue?.title || "Unknown Title";
+      const issueBody = payload.issue?.body || "";
+
+      const repositoryFiles = await prisma.file.findMany({
+        where: { repositoryId: enabledRepo.id },
+        select: { path: true },
+      });
+
+      const triageService = new IssueTriageService();
+      await triageService.triageIssue({
+        owner,
+        repo,
+        issueNumber,
+        title: issueTitle,
+        body: issueBody,
+        repositoryFiles,
+        githubToken: installationToken,
+      });
+
+      await prisma.webhookEvent.update({
+        where: { id: eventId },
+        data: { status: "completed" },
+      });
+
+      return NextResponse.json({ ok: true, message: "Issue triaged" });
+    }
+
+    const pr = await github.getPullRequest(owner, repo, number);
+    const headSha = pr?.head?.sha;
+    if (!headSha) {
+      throw new Error("Missing head SHA from GitHub PR response");
+    }
 
       const prRecord = await prisma.pullRequest.upsert({
         where: {
@@ -210,6 +285,21 @@ export async function POST(request: NextRequest) {
         const comment = formatPRReviewMarkdown({ review, prUrl });
         let postedUrl: string | null = null;
         let postError: any = null;
+    try {
+      const { review, prUrl, tokensConsumed } = await reviewPullRequest({
+        owner,
+        repo,
+        number,
+        githubToken: installationToken,
+      });
+
+      if (tokensConsumed) {
+        await QuotaService.recordTokenUsage(BigInt(installationId), tokensConsumed);
+      }
+
+      const comment = formatPRReviewMarkdown({ review, prUrl });
+      let postedUrl: string | null = null;
+      let postError: any = null;
 
         try {
           const posted = await github.postPullRequestComment(owner, repo, number, comment);
@@ -248,6 +338,38 @@ export async function POST(request: NextRequest) {
           where: { id: eventId },
           data: { status: "completed" },
         });
+      // Execute dependency impact analysis
+      try {
+        const impactService = new ImpactAnalysisService();
+        await impactService.analyzePR({
+          owner,
+          repo,
+          pullNumber: number,
+          githubToken: installationToken,
+        });
+      } catch (impactErr) {
+        console.error("Dependency impact analysis failed:", impactErr);
+      }
+
+      // Execute self-healing patches
+      try {
+        const selfHealingService = new SelfHealingService();
+        await selfHealingService.processAndPostPatches({
+          owner,
+          repo,
+          pullNumber: number,
+          headSha,
+          githubToken: installationToken,
+          reviewResponse: review,
+        });
+      } catch (selfHealErr) {
+        console.error("Self-healing patch generation failed:", selfHealErr);
+      }
+
+      await prisma.webhookEvent.update({
+        where: { id: eventId },
+        data: { status: "completed" },
+      });
 
         return NextResponse.json({ ok: true, posted: postedUrl, postError });
       } catch (innerError: any) {
