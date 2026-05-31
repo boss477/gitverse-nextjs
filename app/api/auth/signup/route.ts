@@ -52,7 +52,7 @@ export async function POST(request: NextRequest) {
 
     if (new TextEncoder().encode(password).length > 72) {
       return NextResponse.json(
-        { error: "Password must be at most 72 characters" },
+        { error: "Password must be at most 72 bytes" },
         { status: 400 }
       );
     }
