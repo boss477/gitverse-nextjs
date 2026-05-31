@@ -195,11 +195,17 @@ export function parsePullRequestUrl(
   return { owner, repo, number };
 }
 
+import { TimeoutEstimatorService } from "./timeout-estimator";
+import { chunkedReviewService } from "./chunked-review";
+import { prSizeAnalyzer } from "./pr-size-analyzer";
+import { DEFAULT_REVIEW_THRESHOLDS } from "../../types/review-processing";
+
 export async function reviewPullRequest(params: {
   owner: string;
   repo: string;
   number: number;
   githubToken?: string;
+  timeoutEstimator?: TimeoutEstimatorService;
 }): Promise<{ review: PRReviewResponse; prTitle: string; prUrl: string; tokensConsumed?: number }> {
   const github = new GitHubService(params.githubToken);
   const pr = await github.getPullRequest(
@@ -207,30 +213,45 @@ export async function reviewPullRequest(params: {
     params.repo,
     params.number,
   );
-  const prFiles = await github.getPullRequestFiles(
+  const prFilesRaw = await github.getPullRequestFiles(
     params.owner,
     params.repo,
     params.number,
   );
 
-  const { diff, stats } = buildDiffForPrompt(
-    prFiles.map((f) => ({
-      filename: f.filename,
-      status: f.status,
-      patch: f.patch,
-      additions: f.additions,
-      deletions: f.deletions,
-      changes: f.changes,
-    })),
-  );
+  const prFiles = prFilesRaw.map((f) => ({
+    filename: f.filename,
+    status: f.status,
+    patch: f.patch,
+    additions: f.additions,
+    deletions: f.deletions,
+    changes: f.changes,
+  }));
 
-  if (!diff) {
-    throw new Error(
-      "PR diff is unavailable (no patch content returned). GitHub may omit patch content for very large changes.",
-    );
-  }
+  const metrics = prSizeAnalyzer.analyzeSize(prFiles);
+  const mode = prSizeAnalyzer.determineReviewMode(metrics);
+  const timeoutEstimator = params.timeoutEstimator || new TimeoutEstimatorService();
 
-  const prompt = `You are a senior code reviewer. Review the following GitHub Pull Request changes.
+  const { crossRepoImpactService } = await import("./cross-repo-impact");
+  const modifiedFileNames = prFiles.map(f => f.filename);
+  const impactReport = crossRepoImpactService.analyzeImpact(`${params.owner}/${params.repo}`, modifiedFileNames);
+  
+  const impactContext = impactReport.potentiallyAffectedRepositories.length > 0 
+    ? `\nCross-Repository Impact Risk: ${impactReport.risk}\nReason: ${impactReport.reason}\nPotentially Affected Downstream Repositories: ${impactReport.potentiallyAffectedRepositories.join(", ")}\n` 
+    : "";
+
+  const processChunk = async (chunkFiles: typeof prFiles, chunkIndex: number, totalChunks: number): Promise<PRReviewResponse | null> => {
+    const { diff, stats } = buildDiffForPrompt(chunkFiles);
+
+    if (!diff) {
+      if (totalChunks === 1) {
+        throw new Error("PR diff is unavailable (no patch content returned).");
+      }
+      return null;
+    }
+
+    const chunkNotice = totalChunks > 1 ? `(Chunk ${chunkIndex} of ${totalChunks})` : "";
+    const prompt = `You are a senior code reviewer. Review the following GitHub Pull Request changes ${chunkNotice}.
 
 Return ONLY valid JSON matching this schema (no markdown, no code fences, no extra text):
 {
@@ -269,23 +290,43 @@ PR Title: ${pr.title}
 PR Author: ${pr.user?.login || "unknown"}
 Base: ${pr.base?.ref || "?"}  Head: ${pr.head?.ref || "?"}
 Changed files (subset):\n${stats}
-
+${impactContext}
 Diff (subset, may be truncated):\n${diff}
 `;
 
-  let raw: string;
-  let tokensConsumed: number = 0;
-  try {
     const gemini = new GeminiService();
     const result = await gemini.chatRaw(prompt);
-    raw = result.text;
-    tokensConsumed = result.tokensConsumed;
-  } catch (error: any) {
-    console.error("[reviewPullRequest] Gemini API Error:", error?.message || error);
-    // Graceful fallback for payload too large or timeouts
+    const parsed = safeParseReviewJson(result.text);
+    if (!parsed) {
+      throw new Error("AI response was not valid JSON");
+    }
+    return parsed;
+  };
+
+  // Determine chunkSize based on mode
+  let chunkSize = 50;
+  if (mode === 'Chunked') chunkSize = 100;
+  if (mode === 'Degraded') chunkSize = 50; // Use smaller chunks to fit whatever time is left
+
+  let filesToProcess = prFiles;
+  if (mode === 'Degraded') {
+    // Only process the first N files to guarantee some review happens
+    filesToProcess = prFiles.slice(0, DEFAULT_REVIEW_THRESHOLDS.chunkedFileCount);
+  }
+
+  const { result: chunkResult, review } = await chunkedReviewService.executeChunkedReview({
+    files: filesToProcess,
+    timeoutEstimator,
+    chunkSize,
+    processChunk,
+    mode
+  });
+
+  if (!review) {
+    // Fallback if completely failed
     return {
       review: {
-        summary: "The pull request diff was too large or complex for the AI to analyze fully, or the AI service timed out. Please review the changes manually.",
+        summary: `The pull request diff was too large or complex for the AI to analyze fully, or the AI service timed out. Status: ${chunkResult.status}. Error: ${chunkResult.errorReason || 'Unknown'}`,
         overallScore: 50,
         issues: [{
           title: "PR Diff Too Large / Analysis Timeout",
@@ -303,12 +344,7 @@ Diff (subset, may be truncated):\n${diff}
     };
   }
 
-  const parsed = safeParseReviewJson(raw);
-  if (!parsed) {
-    throw new Error("AI response was not valid JSON");
-  }
-
-  return { review: parsed, prTitle: pr.title, prUrl: pr.html_url, tokensConsumed };
+  return { review, prTitle: pr.title, prUrl: pr.html_url };
 }
 
 export function formatPRReviewMarkdown(params: {

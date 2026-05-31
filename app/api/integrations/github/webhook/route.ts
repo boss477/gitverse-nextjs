@@ -4,6 +4,10 @@ import prisma from "@/lib/prisma";
 import crypto from "crypto";
 import { QuotaService } from "@/lib/services/quotaService";
 import { getClientIp } from "@/lib/services/rateLimitService";
+import { webhookQueue } from "@/lib/services/webhook-queue";
+import { dbHealthService } from "@/lib/services/db-health";
+import { webhookRetryService } from "@/lib/services/webhook-retry";
+
 
 export const runtime = "nodejs";
 
@@ -147,31 +151,14 @@ export async function POST(request: NextRequest) {
       },
     });
 
-    // Trigger internal worker asynchronously
-    const baseUrl = process.env.NEXTAUTH_URL || `http://${request.headers.get("host") || "localhost:3000"}`;
-    const workerUrl = `${baseUrl}/api/internal/worker/webhook`;
-    
-    // Generate auth token for internal worker using dedicated secret
-    const internalSecret = process.env.INTERNAL_WORKER_SECRET;
-    if (!internalSecret) {
-      console.error("[CRITICAL] INTERNAL_WORKER_SECRET not configured — cannot trigger worker");
-      return NextResponse.json(
-        { error: "Internal worker secret not configured" },
-        { status: 500 }
-      );
-    }
-    const internalToken = `Bearer ${crypto.createHash('sha256').update(internalSecret).digest('hex')}`;
+    // Automatically retry any previously failed jobs occasionally
+    // (This is lightweight and ensures dead-letter recovery without a cron)
+    webhookRetryService.requeueFailedJobs().catch(() => {});
 
-    // Non-blocking fetch
-    fetch(workerUrl, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "Authorization": internalToken,
-      },
-      body: JSON.stringify({ eventId: webhookEvent.id }),
-    }).catch(err => {
-      console.error("Failed to trigger webhook worker:", err);
+    // Trigger internal workers asynchronously via queue manager
+    const baseUrl = process.env.NEXTAUTH_URL || `http://${request.headers.get("host") || "localhost:3000"}`;
+    webhookQueue.triggerWorkers(baseUrl).catch(err => {
+      console.error("[Webhook] Failed to trigger queue workers:", err);
     });
 
     return NextResponse.json(

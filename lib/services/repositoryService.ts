@@ -287,7 +287,7 @@ if (existingRepositoryName) {
         progressPercent: 65,
         progressMessage: "Scanning files",
       });
-      const files = await gitService.getFileTree(opts?.scope);
+      const files = await gitService.getFileTree(opts?.scope || repository.targetDirectory || undefined);
       checkAborted();
 
       await report({
