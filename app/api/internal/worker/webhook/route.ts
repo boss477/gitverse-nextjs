@@ -277,9 +277,9 @@ export async function POST(request: NextRequest) {
     await prisma.webhookEvent.update({
       where: { id: eventId },
       data: {
-        status: shouldRetry ? "failed" : "failed",
+        status: shouldRetry ? "pending" : "failed",
         error: String(error?.message || error),
-        retryCount: currentRetryCount,
+        retryCount: currentRetryCount + 1,
         nextRetryAt: shouldRetry ? new Date(Date.now() + retryDelay) : null,
       },
     });

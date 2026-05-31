@@ -60,7 +60,46 @@ export async function recoverStuckEvents(): Promise<{
     recovered++;
   }
 
-  // 2. Retry "failed" events that are due for retry
+  // 2. Re-trigger "pending" events that are due for retry (set by worker on failure)
+  const pendingRetryEvents = await prisma.webhookEvent.findMany({
+    where: {
+      status: "pending",
+      nextRetryAt: { lte: now },
+      nextRetryAt: { not: null },
+    },
+    orderBy: { createdAt: "asc" },
+    take: 10,
+  });
+
+  for (const event of pendingRetryEvents) {
+    const currentRetryCount = (event as any).retryCount ?? 0;
+    const maxRetries = (event as any).maxRetries ?? 3;
+
+    if (currentRetryCount >= maxRetries) {
+      await prisma.webhookEvent.update({
+        where: { id: event.id },
+        data: {
+          status: "failed",
+          error: "Exceeded max retries",
+          nextRetryAt: null,
+        },
+      });
+      skipped++;
+      continue;
+    }
+
+    // Mark as processing so the worker can pick it up
+    await prisma.webhookEvent.update({
+      where: { id: event.id },
+      data: {
+        status: "pending",
+        nextRetryAt: null,
+      },
+    });
+    retried++;
+  }
+
+  // 3. Retry "failed" events that are due for retry (legacy path)
   const failedEvents = await prisma.webhookEvent.findMany({
     where: {
       status: "failed",
