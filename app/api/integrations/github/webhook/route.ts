@@ -4,6 +4,7 @@ import prisma from "@/lib/prisma";
 import crypto from "crypto";
 import { QuotaService } from "@/lib/services/quotaService";
 import { getClientIp } from "@/lib/services/rateLimitService";
+import { SafeHttpClient } from "@/services/security/safe-http-client";
 
 export const runtime = "nodejs";
 
@@ -163,14 +164,15 @@ export async function POST(request: NextRequest) {
     const internalToken = `Bearer ${crypto.createHash('sha256').update(internalSecret).digest('hex')}`;
 
     // Non-blocking fetch
-    fetch(workerUrl, {
+    SafeHttpClient.fetch(workerUrl, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
         "Authorization": internalToken,
       },
       body: JSON.stringify({ eventId: webhookEvent.id }),
-    }).catch(err => {
+      allowLocalhost: true, // Allow localhost since it is an internal route
+    }).catch((err: any) => {
       console.error("Failed to trigger webhook worker:", err);
     });
 
