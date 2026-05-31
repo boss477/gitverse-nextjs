@@ -30,14 +30,10 @@ export function isAnalysisRunnerAuthorized(request: NextRequest): boolean {
     return false;
   }
 
+  // Only accept the secret via HTTP header to prevent credential leakage
+  // through URL query parameters in access logs, proxy logs, and browser history.
   const headerSecret = request.headers.get("x-analysis-runner-secret");
   if (headerSecret && timingSafeCompare(headerSecret, configuredSecret)) {
-    return true;
-  }
-
-  const url = new URL(request.url);
-  const querySecret = url.searchParams.get("secret");
-  if (querySecret && timingSafeCompare(querySecret, configuredSecret)) {
     return true;
   }
 
