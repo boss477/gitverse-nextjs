@@ -1,11 +1,19 @@
 import prisma from "../../lib/prisma";
 import { ParsedRepositoryKnowledge } from "../parsers/gitverseConfigParser";
 
+import { Prisma } from "@prisma/client";
+
 export const repositoryKnowledgeService = {
   async getKnowledge(repositoryId: number) {
     return await prisma.repositoryKnowledge.findUnique({
       where: { repositoryId }
     });
+  },
+
+  async refreshKnowledge(repositoryId: number) {
+    // Note: In real app, this fetches .gitverse.json / .gitverse.md and updates the db
+    // This is just a stub for the sync service
+    return true;
   },
 
   async upsertKnowledge(repositoryId: number, knowledge: ParsedRepositoryKnowledge) {
@@ -28,16 +36,16 @@ export const repositoryKnowledgeService = {
       where: { repositoryId },
       update: {
         projectDescription: knowledge.projectDescription || null,
-        glossary: knowledge.glossary || null,
-        onboardingNotes: knowledge.onboardingNotes ? JSON.stringify(knowledge.onboardingNotes) : null,
-        architecturePrinciples: knowledge.architecturePrinciples ? JSON.stringify(knowledge.architecturePrinciples) : null,
+        glossary: knowledge.glossary || Prisma.DbNull,
+        onboardingNotes: knowledge.onboardingNotes || Prisma.DbNull,
+        architecturePrinciples: knowledge.architecturePrinciples || Prisma.DbNull,
       },
       create: {
         repositoryId,
         projectDescription: knowledge.projectDescription || null,
-        glossary: knowledge.glossary || null,
-        onboardingNotes: knowledge.onboardingNotes ? JSON.stringify(knowledge.onboardingNotes) : null,
-        architecturePrinciples: knowledge.architecturePrinciples ? JSON.stringify(knowledge.architecturePrinciples) : null,
+        glossary: knowledge.glossary || Prisma.DbNull,
+        onboardingNotes: knowledge.onboardingNotes || Prisma.DbNull,
+        architecturePrinciples: knowledge.architecturePrinciples || Prisma.DbNull,
       }
     });
   }

@@ -13,7 +13,7 @@ interface Knowledge {
 
 export default function RepositoryKnowledgeSettings() {
   const params = useParams();
-  const repositoryId = params.id as string;
+  const repositoryId = params?.id as string;
   const [knowledge, setKnowledge] = useState<Knowledge | null>(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);

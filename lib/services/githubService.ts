@@ -496,6 +496,36 @@ export class GitHubService {
   }
 
   /**
+   * Get comments on a pull request (PR comments are issue comments in GitHub API)
+   */
+  async getPullRequestComments(
+    owner: string,
+    repo: string,
+    pullNumber: number,
+  ): Promise<any[]> {
+    const response = await this.client.get(
+      `/repos/${owner}/${repo}/issues/${pullNumber}/comments`,
+    );
+    return response.data;
+  }
+
+  /**
+   * Update a comment on a pull request
+   */
+  async updatePullRequestComment(
+    owner: string,
+    repo: string,
+    commentId: number,
+    body: string,
+  ): Promise<any> {
+    const response = await this.client.patch(
+      `/repos/${owner}/${repo}/issues/comments/${commentId}`,
+      { body },
+    );
+    return response.data;
+  }
+
+  /**
    * Post a comment on an issue
    */
   async postIssueComment(

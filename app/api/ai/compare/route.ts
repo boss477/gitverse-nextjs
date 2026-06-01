@@ -2,17 +2,66 @@ import { NextRequest, NextResponse } from "next/server";
 import { isHttpError, requireAuth, sanitizeError } from "@/lib/middleware";
 import { getGeminiService } from "@/lib/services/geminiService";
 import { repositoryService } from "@/lib/services/repositoryService";
+import {
+  validateContentType,
+  AI_REQUEST_LIMITS,
+} from "@/lib/utils/aiRequestValidation";
+import { checkAiRateLimit, logAiRequest } from "@/lib/utils/ipRateLimit";
+import { getClientIp } from "@/lib/services/rateLimitService";
+
+const COMPARE_RATE_LIMIT = 5;
+const COMPARE_WINDOW_MS = 60_000;
+const MAX_REPOSITORIES = 5;
 
 export async function POST(request: NextRequest) {
   try {
     const user = await requireAuth(request);
 
-    const body = await request.json();
+    const contentTypeError = validateContentType(request);
+    if (contentTypeError) return contentTypeError;
+
+    const allowed = await checkAiRateLimit(
+      String(user.userId), "userId", "compare",
+      COMPARE_RATE_LIMIT, COMPARE_WINDOW_MS
+    );
+    if (!allowed) {
+      return NextResponse.json(
+        { error: "Too many requests. Please wait before comparing again." },
+        { status: 429 }
+      );
+    }
+
+    let body: any;
+    try {
+      body = await request.json();
+    } catch {
+      return NextResponse.json(
+        { error: "Invalid or empty request body" },
+        { status: 400 }
+      );
+    }
+
     const { repositoryIds } = body;
 
-    if (!repositoryIds || !Array.isArray(repositoryIds) || repositoryIds.length < 2) {
+    if (!repositoryIds || !Array.isArray(repositoryIds)) {
+      return NextResponse.json(
+        { error: "repositoryIds must be an array" },
+        { status: 400 }
+      );
+    }
+
+    if (repositoryIds.length < 2) {
       return NextResponse.json(
         { error: "At least two repository IDs are required for comparison" },
+        { status: 400 }
+      );
+    }
+
+    if (repositoryIds.length > MAX_REPOSITORIES) {
+      return NextResponse.json(
+        {
+          error: `Maximum ${MAX_REPOSITORIES} repositories can be compared at once. You provided ${repositoryIds.length}.`,
+        },
         { status: 400 }
       );
     }
@@ -37,17 +86,16 @@ export async function POST(request: NextRequest) {
       repositories.push(repo);
     }
 
-    // Build rich architectural summary comparison prompt
     const reposContext = repositories.map((repo, idx) => {
       const langText = repo.languages
         .map((l: any) => `${l.name} (${l.percentage}%)`)
         .join(", ");
-      
+
       const branchText = repo.branches.map((b: any) => b.name).join(", ");
       const commitCount = repo.commits?.length || 0;
       const fileCount = repo.files?.length || 0;
       const contributorCount = repo.contributors?.length || 0;
-      
+
       return `Repository #${idx + 1}: "${repo.name}"
 - Description: ${repo.description || "N/A"}
 - Tech Stack/Languages: ${langText || "N/A"}
@@ -73,6 +121,12 @@ Keep the response comprehensive, deeply architectural, and structured with clear
 
     const gemini = getGeminiService();
     const comparisonResult = await gemini.chatRaw(prompt);
+
+    void logAiRequest({
+      userId: user.userId,
+      ip: getClientIp(request),
+      endpoint: "compare",
+    });
 
     return NextResponse.json({ comparison: comparisonResult });
   } catch (error: any) {

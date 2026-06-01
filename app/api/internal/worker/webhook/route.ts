@@ -21,8 +21,8 @@ import { PremergePolicyEngine } from "@/lib/services/premerge-policy-engine";
 import { CheckSummaryService } from "@/lib/services/check-summary";
 import { CheckRecoveryService } from "@/lib/services/check-recovery";
 import { webhookQueue } from "@/lib/services/webhook-queue";
-import { classifyRetry } from "@/lib/utils/retry";
-import { isInternalWorkerAuthorized } from "@/lib/utils/internalAuth";
+import { PRImpactAnalysisService } from "@/lib/services/prImpactAnalysisService";
+import { RepositorySyncQueue } from "@/lib/services/repositorySyncQueue";
 
 export const runtime = "nodejs";
 export const maxDuration = 300; // 5 minutes max duration for Vercel
@@ -88,7 +88,7 @@ async function handlePost(request: NextRequest) {
     const number = pullNumber || issueNumber;
     const installationId = payload.installation?.id;
 
-    if (!owner || !repo || !number || !installationId) {
+    if (!owner || !repo || (!number && webhookEvent.event !== "push") || !installationId) {
       throw new Error("Missing required fields in payload");
     }
 
@@ -147,6 +147,17 @@ async function handlePost(request: NextRequest) {
         }
       }
       return NextResponse.json({ ok: true, ignored: true, reason: "quota_exhausted" });
+    }
+
+    if (webhookEvent.event === "push") {
+      const enqueued = await RepositorySyncQueue.enqueueSyncJob(enabledRepo.id, "push");
+      
+      await prisma.webhookEvent.update({
+        where: { id: eventId },
+        data: { status: "completed" },
+      });
+
+      return NextResponse.json({ ok: true, message: enqueued ? "Sync job enqueued" : "Duplicate sync job ignored" });
     }
 
     if (webhookEvent.event === "issues") {
@@ -327,6 +338,14 @@ async function handlePost(request: NextRequest) {
           pullNumber: number,
           githubToken: installationToken,
         });
+
+        await PRImpactAnalysisService.analyzePullRequest(
+          installationToken,
+          repoFullName,
+          number,
+          prRecord.id,
+          enabledRepo.id
+        );
       } catch (impactErr) {
         console.error("Dependency impact analysis failed:", impactErr);
       }

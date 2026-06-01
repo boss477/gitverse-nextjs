@@ -12,6 +12,7 @@ import { Contributors } from "@/components/repository/Contributors";
 import { RepositoryInsights } from "@/components/repository/RepositoryInsights";
 import { RepositoryMentorTab } from "@/components/ai/RepositoryMentorTab";
 import { AIRepositoryOverlay } from "@/components/ai/AIRepositoryOverlay";
+import { SyncStatusCard } from "@/components/repository/SyncStatusCard";
 
 import {
   Home,
@@ -489,7 +490,18 @@ export default function RepositoryAnalysis() {
                 </div>
 
                 {/* Content */}
-                <div className="animate-fade-in-up">{renderContent()}</div>
+                <div className="grid grid-cols-1 lg:grid-cols-4 gap-6 animate-fade-in-up">
+                  <div className="lg:col-span-3 space-y-6">
+                    {renderContent()}
+                  </div>
+                  <div className="lg:col-span-1">
+                    <SyncStatusCard 
+                      repositoryId={repository.id.toString()} 
+                      lastSynchronizedAt={repository.lastSynchronizedAt}
+                      initialJobs={repository.syncJobs || []}
+                    />
+                  </div>
+                </div>
               </>
             )}
           </>

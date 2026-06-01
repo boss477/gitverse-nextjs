@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
-import { requireAuth, apiError, apiSuccess } from "@/lib/middleware";
+import { requireAuth } from "@/lib/middleware";
 import { prisma } from "@/lib/prisma";
-import { broadcastAnnotationEvent } from "./sync/route";
+import { broadcastAnnotationEvent } from "@/lib/services/annotationSync";
 
 export async function GET(request: NextRequest) {
   try {
@@ -10,7 +10,7 @@ export async function GET(request: NextRequest) {
     const repositoryId = searchParams.get("repositoryId");
 
     if (!repositoryId) {
-      return apiError("repositoryId is required", 400);
+      return NextResponse.json({ error: "repositoryId is required" }, { status: 400 });
     }
 
     const annotations = await prisma.mapAnnotation.findMany({
@@ -25,9 +25,9 @@ export async function GET(request: NextRequest) {
       orderBy: { createdAt: 'desc' }
     });
 
-    return apiSuccess({ annotations });
+    return NextResponse.json(annotations);
   } catch (error: any) {
-    return apiError("Failed to fetch annotations", 500);
+    return NextResponse.json({ error: "Failed to fetch annotations" }, { status: 500 });
   }
 }
 
@@ -39,7 +39,7 @@ export async function POST(request: NextRequest) {
     const { repositoryId, targetType, targetId, content, annotationType, positionX, positionY } = body;
 
     if (!repositoryId || !targetType || !targetId || !content || !annotationType) {
-      return apiError("Missing required fields", 400);
+      return NextResponse.json({ error: "Missing required fields" }, { status: 400 });
     }
 
     // Verify user has access to repo (simple check, assume requireAuth is sufficient or add repo ownership check)
@@ -51,7 +51,7 @@ export async function POST(request: NextRequest) {
     });
 
     if (!repo) {
-      return apiError("Repository not found or access denied", 403);
+      return NextResponse.json({ error: "Repository not found or access denied" }, { status: 403 });
     }
 
     const annotation = await prisma.mapAnnotation.create({
@@ -86,9 +86,9 @@ export async function POST(request: NextRequest) {
       annotation
     });
 
-    return apiSuccess({ annotation }, 201);
+    return NextResponse.json(annotation, { status: 201 });
   } catch (error: any) {
     console.error("Failed to create annotation", error);
-    return apiError("Failed to create annotation", 500);
+    return NextResponse.json({ error: "Failed to create annotation" }, { status: 500 });
   }
 }

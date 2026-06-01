@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, useMemo } from "react";
 import * as htmlToImage from "html-to-image";
 import * as d3 from "d3";
 import { Card } from "@/components/ui";
@@ -10,6 +10,11 @@ import { AnnotationMarker } from "../map/AnnotationMarker";
 import { AnnotationPopover } from "../map/AnnotationPopover";
 import { AnnotationPanel } from "../map/AnnotationPanel";
 import { MessageSquarePlus } from "lucide-react";
+import { useGraphDrilldown } from "@/hooks/useGraphDrilldown";
+import { useGraphFilters } from "@/hooks/useGraphFilters";
+import { FilterPanel } from "../map/FilterPanel";
+import { DrilldownControls } from "../map/DrilldownControls";
+import { MiniMap } from "../map/MiniMap";
 
 interface RepositoryFile {
   path: string;
@@ -39,11 +44,25 @@ export function CodeDependencyGraph({ repository }: CodeDependencyGraphProps) {
   const [popover, setPopover] = useState<{ isOpen: boolean, x: number, y: number, initialData?: Partial<MapAnnotation>, targetId?: string, targetType?: 'node'|'edge' } | null>(null);
   const nodesRef = useRef<any[]>([]);
   const linksRef = useRef<any[]>([]);
-  // Dummy state to force render during tick
   const [, setTick] = useState(0);
+
+  const { 
+    filters, toggleDirectory, toggleFileType, toggleDomain, resetFilters 
+  } = useGraphFilters();
+
+  const {
+    expandedNodes, toggleExpand, collapseAll, focusNode, setFocus, clearFocus, goBack, canGoBack
+  } = useGraphDrilldown();
   
-  const graphAnalyzer = new GraphAnalyzer();
-  const graphData = graphAnalyzer.buildDependencyGraph(repository?.files || []);
+  const graphData = useMemo(() => {
+    const analyzer = new GraphAnalyzer();
+    return analyzer.buildDependencyGraph(repository?.files || [], {
+      expandedNodes,
+      hiddenDirectories: filters.hiddenDirectories,
+      hiddenFileTypes: filters.hiddenFileTypes,
+      visibleDomains: filters.visibleDomains
+    });
+  }, [repository?.files, expandedNodes, filters]);
 
   const exportGraph = async (format: "png" | "svg") => {
     if (!exportRef.current) return;
@@ -230,6 +249,13 @@ export function CodeDependencyGraph({ repository }: CodeDependencyGraphProps) {
           targetId: d.id,
           targetType: 'node'
         });
+      })
+      .on("click", (event: any, d: any) => {
+        if (event.defaultPrevented) return; // Dragged
+        if (d.type === 'folder') {
+          toggleExpand(d.id);
+        }
+        setFocus(d.id);
       });
 
     // Node circles
@@ -355,10 +381,42 @@ export function CodeDependencyGraph({ repository }: CodeDependencyGraphProps) {
       .delay((_d: any, i: number) => i * 30)
       .attr("r", (d: any) => d.size / 3);
 
+    svgSelectionRef.current = { node, link };
+
     return () => {
       simulation.stop();
     };
-  }, [repository]);
+  }, [graphData]); // Use graphData as dependency
+
+  // Effect to handle focus mode fading
+  useEffect(() => {
+    if (!svgSelectionRef.current) return;
+    const { node, link } = svgSelectionRef.current;
+
+    if (!focusNode) {
+      // Restore opacity
+      node.transition().duration(300).style("opacity", 1);
+      link.transition().duration(300).attr("stroke-opacity", 0.6);
+      return;
+    }
+
+    // Determine nodes related to focusNode
+    const relatedNodes = new Set<string>();
+    relatedNodes.add(focusNode);
+    
+    linksRef.current.forEach(l => {
+      if (l.source.id === focusNode) relatedNodes.add(l.target.id);
+      if (l.target.id === focusNode) relatedNodes.add(l.source.id);
+    });
+
+    node.transition().duration(300)
+      .style("opacity", (d: any) => relatedNodes.has(d.id) ? 1 : 0.2);
+    
+    link.transition().duration(300)
+      .attr("stroke-opacity", (d: any) => 
+        (d.source.id === focusNode || d.target.id === focusNode) ? 1 : 0.1
+      );
+  }, [focusNode]);
 
   const handleZoomIn = () => {
     if (svgRef.current) {
@@ -509,6 +567,36 @@ export function CodeDependencyGraph({ repository }: CodeDependencyGraphProps) {
             <div className="absolute bottom-2 right-3 text-[10px] text-white/70 pointer-events-none">
               GitVerse • {repository?.name || "Repository"}
             </div>
+            
+            <FilterPanel 
+              filters={filters} 
+              toggleDirectory={toggleDirectory} 
+              toggleFileType={toggleFileType} 
+              toggleDomain={toggleDomain} 
+              resetFilters={resetFilters} 
+            />
+
+            <DrilldownControls 
+              canGoBack={canGoBack} 
+              onGoBack={goBack} 
+              onClearFocus={clearFocus} 
+              focusNode={focusNode} 
+              onResetGraph={() => {
+                collapseAll();
+                resetFilters();
+                clearFocus();
+              }} 
+            />
+
+            <MiniMap 
+              nodes={nodesRef.current} 
+              links={linksRef.current} 
+              width={svgRef.current?.parentElement?.clientWidth || 800} 
+              height={Math.min((svgRef.current?.parentElement?.clientWidth || 800) * 0.75, 600)} 
+              svgRef={svgRef} 
+              transform={transform} 
+            />
+
           </div>
 
           <MapControls 

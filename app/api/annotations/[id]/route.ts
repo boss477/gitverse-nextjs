@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
-import { requireAuth, apiError, apiSuccess } from "@/lib/middleware";
+import { requireAuth } from "@/lib/middleware";
 import { prisma } from "@/lib/prisma";
-import { broadcastAnnotationEvent } from "../sync/route";
+import { broadcastAnnotationEvent } from "@/lib/services/annotationSync";
 
 export async function PATCH(
   request: NextRequest,
@@ -19,12 +19,12 @@ export async function PATCH(
     });
 
     if (!existing) {
-      return apiError("Annotation not found", 404);
+      return NextResponse.json({ error: "Annotation not found" }, { status: 404 });
     }
 
     // Only author or repo owner can edit
     if (existing.authorId !== user.userId && existing.repository.userId !== user.userId) {
-      return apiError("Forbidden", 403);
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
 
     const updated = await prisma.mapAnnotation.update({
@@ -55,9 +55,9 @@ export async function PATCH(
       annotation: updated
     });
 
-    return apiSuccess({ annotation: updated });
+    return NextResponse.json(updated);
   } catch (error: any) {
-    return apiError("Failed to update annotation", 500);
+    return NextResponse.json({ error: "Failed to update annotation" }, { status: 500 });
   }
 }
 
@@ -75,11 +75,11 @@ export async function DELETE(
     });
 
     if (!existing) {
-      return apiError("Annotation not found", 404);
+      return NextResponse.json({ error: "Annotation not found" }, { status: 404 });
     }
 
     if (existing.authorId !== user.userId && existing.repository.userId !== user.userId) {
-      return apiError("Forbidden", 403);
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
 
     // Capture repositoryId before deletion for broadcasting
@@ -100,8 +100,8 @@ export async function DELETE(
       annotationId: id
     });
 
-    return apiSuccess({ success: true });
+    return NextResponse.json({ success: true });
   } catch (error: any) {
-    return apiError("Failed to delete annotation", 500);
+    return NextResponse.json({ error: "Failed to delete annotation" }, { status: 500 });
   }
 }

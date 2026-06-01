@@ -110,6 +110,7 @@ model PullRequest {
 
   repo    GitHubRepo @relation(fields: [repoId], references: [id], onDelete: Cascade)
   reviews PRReview[]
+  impactAnalyses PRImpactAnalysis[]
 
   @@unique([repoId, prNumber])
   @@index([repoId])
@@ -130,6 +131,23 @@ model PRReview {
   @@unique([pullRequestId, headSha])
   @@index([createdAt])
   @@map("pr_reviews")
+}
+
+model PRImpactAnalysis {
+  id              String      @id @default(uuid()) @db.Uuid
+  pullRequestId   Int         @map("pull_request_id")
+  headSha         String      @map("head_sha")
+  riskScore       Float?      @map("risk_score")
+  impactSummary   String      @map("impact_summary") @db.Text
+  breakingChanges Boolean     @default(false) @map("breaking_changes")
+  aiMetrics       Json?       @map("ai_metrics")
+  createdAt       DateTime    @default(now()) @map("created_at")
+  updatedAt       DateTime    @updatedAt @map("updated_at")
+
+  pullRequest     PullRequest @relation(fields: [pullRequestId], references: [id], onDelete: Cascade)
+  @@unique([pullRequestId, headSha])
+  @@index([pullRequestId])
+  @@map("pr_impact_analyses")
 }
 
 model Account {
@@ -213,12 +231,31 @@ model Repository {
   policyAssignment    RepositoryPolicyAssignment?
   mapAnnotations      MapAnnotation[]
   knowledge           RepositoryKnowledge?
+  syncJobs            RepositorySyncJob[]
+  lastSynchronizedAt  DateTime?             @map("last_synchronized_at")
 
   @@index([url])
   @@index([userId])
   @@index([userId, url, targetDirectory])
   @@map("repositories")
 }
+
+model RepositorySyncJob {
+  id           String    @id @default(uuid()) @db.Uuid
+  repositoryId Int       @map("repository_id")
+  eventType    String    @map("event_type")
+  status       String    @map("status")
+  startedAt    DateTime? @map("started_at")
+  completedAt  DateTime? @map("completed_at")
+  errorMessage String?   @map("error_message") @db.Text
+
+  repository   Repository @relation(fields: [repositoryId], references: [id], onDelete: Cascade)
+
+  @@index([repositoryId, startedAt(sort: Desc)])
+  @@index([status])
+  @@map("repository_sync_jobs")
+}
+
 
 model AnalysisJob {
   id     String    @id @default(uuid()) @db.Uuid
