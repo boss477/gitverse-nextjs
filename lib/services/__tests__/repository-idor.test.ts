@@ -605,7 +605,6 @@ describe("Repository IDOR & RBAC Authorization Engine", () => {
         consoleErrorSpy.mockRestore();
       });
     });
-
     describe("Scenario 14: Complex String Boundary Sanitization checks", () => {
       it("gracefully processes long organization ID string payloads without issues", async () => {
         (prisma.repository.findUnique as jest.Mock).mockResolvedValue({
@@ -624,7 +623,6 @@ describe("Repository IDOR & RBAC Authorization Engine", () => {
         expect(result.role).toBe("VIEWER");
       });
     });
-
     describe("Scenario 15: Validations of RepositoryAccessResult Fields Consistency", () => {
       it("guarantees output structure matches spec perfectly for rejected requests", async () => {
         (prisma.repository.findUnique as jest.Mock).mockResolvedValue(null);
@@ -634,7 +632,6 @@ describe("Repository IDOR & RBAC Authorization Engine", () => {
         expect(result).toHaveProperty("repositoryExists", false);
         expect(result).toHaveProperty("reason", "Repository not found");
       });
-
       it("guarantees output structure matches spec perfectly for allowed owner requests", async () => {
         (prisma.repository.findUnique as jest.Mock).mockResolvedValue({
           id: targetRepoId,
@@ -648,7 +645,6 @@ describe("Repository IDOR & RBAC Authorization Engine", () => {
         expect(result.reason).toBeUndefined();
       });
     });
-
     describe("Scenario 16: Advanced Tenant Domain Configuration Boundary Assertions", () => {
       it("assures that cross-tenant validation remains isolated across arbitrary role lookups", async () => {
         const tenantMatrix = [
