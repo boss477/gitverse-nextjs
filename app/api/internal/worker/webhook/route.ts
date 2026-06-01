@@ -22,29 +22,10 @@ import { CheckSummaryService } from "@/lib/services/check-summary";
 import { CheckRecoveryService } from "@/lib/services/check-recovery";
 import { webhookQueue } from "@/lib/services/webhook-queue";
 import { classifyRetry } from "@/lib/utils/retry";
+import { isInternalWorkerAuthorized } from "@/lib/utils/internalAuth";
 
 export const runtime = "nodejs";
 export const maxDuration = 300; // 5 minutes max duration for Vercel
-
-// Secure this internal route
-function isInternalAuthorized(request: NextRequest): boolean {
-  // Can use a specific secret or just reuse the webhook secret
-  const authHeader = request.headers.get("authorization");
-  const secret = process.env.GITHUB_WEBHOOK_SECRET || process.env.JWT_SECRET || "";
-  
-  if (!secret) return false;
-  
-  const expectedToken = `Bearer ${crypto.createHash('sha256').update(secret).digest('hex')}`;
-  
-  try {
-    const a = Buffer.from(expectedToken);
-    const b = Buffer.from(authHeader || "");
-    if (a.length !== b.length) return false;
-    return crypto.timingSafeEqual(a, b);
-  } catch {
-    return false;
-  }
-}
 
 export async function POST(request: NextRequest) {
   const baseUrl = process.env.NEXTAUTH_URL || `http://${request.headers.get("host") || "localhost:3000"}`;
@@ -60,7 +41,7 @@ export async function POST(request: NextRequest) {
 }
 
 async function handlePost(request: NextRequest) {
-  if (!isInternalAuthorized(request)) {
+  if (!isInternalWorkerAuthorized(request.headers.get("authorization"))) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 

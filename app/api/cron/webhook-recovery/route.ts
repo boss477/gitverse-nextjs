@@ -1,32 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
-import crypto from "crypto";
 import { recoverStuckEvents } from "@/lib/services/webhookRecoveryService";
+import { isCronAuthorized } from "@/lib/utils/internalAuth";
 
 export const runtime = "nodejs";
 
-function isCronAuthorized(request: NextRequest): boolean {
-  const authHeader = request.headers.get("authorization");
-  const secret = process.env.CRON_SECRET || process.env.ANALYSIS_RUNNER_SECRET;
-
-  if (!secret) {
-    return false;
-  }
-
-  // Vercel cron injects "Authorization: Bearer <CRON_SECRET>"
-  const expectedToken = `Bearer ${secret}`;
-
-  try {
-    const a = Buffer.from(expectedToken);
-    const b = Buffer.from(authHeader || "");
-    if (a.length !== b.length) return false;
-    return crypto.timingSafeEqual(a, b);
-  } catch {
-    return false;
-  }
-}
-
 export async function GET(request: NextRequest) {
-  if (!isCronAuthorized(request)) {
+  if (!isCronAuthorized(request.headers.get("authorization"))) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 

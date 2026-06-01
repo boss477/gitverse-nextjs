@@ -1,7 +1,7 @@
 import prisma from "../prisma";
-import crypto from "crypto";
 import { WebhookQueueStatus } from "../../types/database-health";
 import { SafeHttpClient } from "@/services/security/safe-http-client";
+import { deriveBearerToken } from "@/lib/utils/internalAuth";
 
 const MAX_CONCURRENT_WEBHOOKS = 5;
 
@@ -47,7 +47,7 @@ export class WebhookQueueService {
       if (!internalSecret) {
         throw new Error("INTERNAL_WORKER_SECRET not configured");
       }
-      const internalToken = `Bearer ${crypto.createHash('sha256').update(internalSecret).digest('hex')}`;
+      const internalToken = deriveBearerToken(internalSecret);
       const workerUrl = `${baseUrl}/api/internal/worker/webhook`;
 
       // Dispatch non-blocking fetches
