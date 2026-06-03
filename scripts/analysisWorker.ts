@@ -1,14 +1,17 @@
 import "dotenv/config";
 import os from "os";
-import prisma from "../lib/prisma";
+import prisma, { disconnectPrisma } from "../lib/prisma";
 import { analysisJobService } from "../lib/services/analysisJobService";
 import { repositoryService } from "../lib/services/repositoryService";
-import {
-  isRateLimitError,
-  extractRetryAfter,
-  sanitizeErrorMessage,
-} from "../lib/utils/rateLimit";
 import type { AnalysisJob } from "@prisma/client";
+
+// Catch any rejections that slip through the promise-gap fixes above.
+// Without this, Node 15+ crashes the entire worker on an unhandled rejection.
+process.on("unhandledRejection", async (reason) => {
+  console.error("FATAL unhandled rejection — worker will exit:", reason);
+  await disconnectPrisma();
+  process.exit(1);
+});
 
 const POLL_INTERVAL_MS = 2000;
 const HEARTBEAT_INTERVAL_MS = 30_000;
@@ -84,14 +87,18 @@ async function runJob(
           workerId: params.workerId,
           lockMs: params.lockMs,
         })
-        .catch((e) => console.error("heartbeat failed", sanitizeErrorMessage(e)));
+        .catch((e) => console.error("heartbeat failed", e));
     }, params.heartbeatIntervalMs);
 
     if (job.type !== "repository_analysis") {
       throw new Error(`Unsupported job type: ${job.type}`);
     }
 
-    await repositoryService.analyzeRepository(job.repositoryId, {
+    const details = job.progressDetails as any;
+    const scope = details?.scope;
+
+    await repositoryService.analyzeRepository(job.repositoryId, job.userId, {
+      scope,
       onProgress: async (update) => {
         await writeProgress(update);
       },
@@ -102,26 +109,15 @@ async function runJob(
       workerId: params.workerId,
     });
   } catch (err: any) {
-    const rateLimited = isRateLimitError(err);
-    const retryAfter = rateLimited ? extractRetryAfter(err) : null;
-    const safeMessage = sanitizeErrorMessage(err);
-
-    if (rateLimited) {
-      console.error(
-        `Job ${job.id} rate limited (attempt ${job.attempts}/${job.maxAttempts})` +
-          (retryAfter ? `, retry after ${retryAfter}s` : "")
-      );
-    } else {
-      console.error(`Job ${job.id} failed: ${safeMessage}`);
-    }
+    const message = err?.message ? String(err.message) : String(err);
+    console.error(`Job ${job.id} failed:`, err);
 
     await analysisJobService.markFailed({
       jobId: job.id,
       workerId: params.workerId,
-      error: safeMessage,
+      error: message,
       attempts: job.attempts,
       maxAttempts: job.maxAttempts,
-      retryAfter: retryAfter ?? undefined,
     });
   } finally {
     if (heartbeatTimer) clearInterval(heartbeatTimer);
@@ -149,19 +145,18 @@ export async function startAnalysisWorkerLoop(opts?: {
     if (stopping) return;
     stopping = true;
     console.log(`received ${signal}, shutting down...`);
-    try {
-      await prisma.$disconnect();
-    } catch {
-      // ignore
-    }
+    await disconnectPrisma();
     process.exit(0);
   };
 
   process.on("SIGTERM", () => void shutdown("SIGTERM"));
   process.on("SIGINT", () => void shutdown("SIGINT"));
+  process.on("SIGQUIT", () => void shutdown("SIGQUIT"));
+  process.on("SIGHUP", () => void shutdown("SIGHUP"));
 
   while (!stopping) {
     try {
+      await analysisJobService.reclaimOrphanedJobs();
       const job = await analysisJobService.claimNextJob({
         workerId,
         lockMs,
@@ -180,7 +175,7 @@ export async function startAnalysisWorkerLoop(opts?: {
 
       if (opts?.once) return;
     } catch (e) {
-      console.error("worker loop error:", sanitizeErrorMessage(e));
+      console.error("worker loop error:", e);
       if (opts?.once) return;
       await sleep(pollIntervalMs);
     }
@@ -194,8 +189,9 @@ const isMain =
   typeof require !== "undefined" && (require as any).main === module;
 if (isMain) {
   const once = !!process.env.WORKER_ONCE;
-  startAnalysisWorkerLoop({ once }).catch((e) => {
+  startAnalysisWorkerLoop({ once }).catch(async (e) => {
     console.error("worker fatal:", e);
+    await disconnectPrisma();
     process.exit(1);
   });
 }
