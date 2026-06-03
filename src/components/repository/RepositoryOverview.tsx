@@ -36,6 +36,8 @@ import { BeginnerGuidanceCard } from "@/components/repository/BeginnerGuidanceCa
 import { BeginnerQuestionsPanel } from "@/components/repository/BeginnerQuestionsPanel";
 import { QuickStartChecklist } from "@/components/repository/QuickStartChecklist";
 import { FolderImportanceGuide } from "@/components/repository/FolderImportanceGuide";
+import { SavedModulesPanel } from "@/components/repository/SavedModulesPanel";
+import { useModuleBookmarks } from "@/hooks/useModuleBookmarks";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import rehypeRaw from "rehype-raw";
@@ -183,6 +185,9 @@ export const RepositoryOverview = ({
   // currently-selected repository (avoids showing stale README when navigating).
   const readmeText: string | null = repositoryData?.readmeText ?? null;
   const readmePath: string | null = repositoryData?.readmePath ?? null;
+
+  // Initialize module bookmarks hook
+  const { bookmarkedModules, toggleBookmark, removeBookmark } = useModuleBookmarks();
 
   // Calculate total lines of code from languages only
   const totalLines =
@@ -620,6 +625,11 @@ export const RepositoryOverview = ({
         )}
 
         <QuickStartChecklist />
+
+        <SavedModulesPanel
+          bookmarkedModules={bookmarkedModules}
+          onRemoveBookmark={removeBookmark}
+        />
 
         <FolderImportanceGuide />
       </div>
