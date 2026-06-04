@@ -156,26 +156,64 @@ export default function RepositoryAnalysis() {
     if (jobStatus === "DONE" || jobStatus === "FAILED") return;
 
     let stopped = false;
-    let intervalMs = 2000;
-    let retries = 0;
-    const MAX_RETRIES = 60;
 
-    const poll = async () => {
-      if (stopped) return;
-      if (retries >= MAX_RETRIES) {
-        setError(
-          "Analysis is taking longer than expected. The job may still be processing — check back later."
+    const startSSE = async () => {
+      try {
+        const token = localStorage.getItem("gitverse_token");
+        const response = await fetch(
+          buildApiUrl(`/api/repositories/${id}/analysis-status?jobId=${jobId}`),
+          { headers: { Authorization: `Bearer ${token}` } }
         );
-        return;
+
+        if (!response.ok) {
+          throw new Error("Failed to start analysis stream");
+        }
+
+        const reader = response.body?.getReader();
+        const decoder = new TextDecoder();
+        let buffer = "";
+
+        if (reader) {
+          while (!stopped) {
+            const { done, value } = await reader.read();
+            if (done) break;
+            
+            buffer += decoder.decode(value, { stream: true });
+            const lines = buffer.split('\n\n');
+            buffer = lines.pop() || "";
+
+            for (const chunk of lines) {
+              if (chunk.startsWith('data: ')) {
+                try {
+                  const data = JSON.parse(chunk.substring(6));
+                  setJob(data);
+
+                  if (data.status === "DONE") {
+                    await fetchRepository();
+                  } else if (data.status === "FAILED") {
+                    setError(data.error || "Analysis failed.");
+                    setIsAnalyzing(false);
+                    toast({
+                      title: "Analysis failed",
+                      description: data.error || "The repository analysis failed.",
+                      variant: "destructive",
+                    });
+                  }
+                } catch (e) {
+                  console.error("Failed to parse SSE chunk", e);
+                }
+              }
+            }
+          }
+        }
+      } catch (err: any) {
+        if (stopped) return;
+        console.error("SSE Error:", err);
+        setError("Analysis is taking longer than expected or connection lost.");
       }
-      retries++;
-      await fetchJob(jobId);
-      if (stopped) return;
-      setTimeout(poll, intervalMs);
-      intervalMs = Math.min(5000, intervalMs + 500);
     };
 
-    poll();
+    startSSE();
 
     return () => {
       stopped = true;
@@ -436,34 +474,49 @@ export default function RepositoryAnalysis() {
             </div>
 
             {isAnalyzing ? (
-              <div className="glass rounded-lg p-12 text-center space-y-4 animate-pulse">
-                <div className="flex justify-center">
-                  <div className="animate-spin rounded-full h-16 w-16 border-b-2 border-primary"></div>
+              <div className="glass rounded-lg p-8 sm:p-12 text-center space-y-6 animate-fade-in-up">
+                <div className="flex justify-center mb-6">
+                  <div className="relative">
+                    <div className="animate-spin rounded-full h-16 w-16 border-b-2 border-primary"></div>
+                    <div className="absolute inset-0 flex items-center justify-center">
+                      <Sparkles className="h-6 w-6 text-primary animate-pulse" />
+                    </div>
+                  </div>
                 </div>
-                <div>
-                  <h2 className="text-xl font-semibold mb-2">
+                
+                <div className="max-w-md mx-auto space-y-4">
+                  <h2 className="text-xl font-semibold">
                     Analyzing Repository
                   </h2>
-                  <p className="text-muted-foreground">
-                    We&apos;re analyzing the repository structure, commits,
-                    contributors, and more.
+                  <p className="text-muted-foreground text-sm">
+                    We&apos;re extracting insights, code structure, commits, and contributors.
                   </p>
-                  <p className="text-sm text-muted-foreground mt-2">
-                    {job?.progressPercent != null && job?.progressPercent >= 0
-                      ? `${Math.min(Math.round(job.progressPercent), 100)}%${job?.progressMessage ? ` — ${job.progressMessage}` : ""}`
-                      : job?.progressMessage
-                        ? job.progressMessage
-                        : "This may take a few moments depending on the repository size..."}
-                  </p>
-                </div>
-                <div className="flex justify-center gap-4 text-sm text-muted-foreground">
-                  <div className="flex items-center gap-2">
-                    <GitCommit className="h-4 w-4" />
-                    Processing commits
+
+                  <div className="space-y-2 mt-8">
+                    <div className="flex justify-between text-sm font-medium">
+                      <span>Progress</span>
+                      <span>
+                        {job?.progressPercent != null && job?.progressPercent >= 0
+                          ? `${Math.min(Math.round(job.progressPercent), 100)}%`
+                          : "Processing..."}
+                      </span>
+                    </div>
+                    <div className="w-full h-2 bg-secondary rounded-full overflow-hidden">
+                      <div 
+                        className="h-full bg-primary transition-all duration-500 ease-out" 
+                        style={{ width: `${Math.max(job?.progressPercent || 5, 5)}%` }}
+                      ></div>
+                    </div>
                   </div>
-                  <div className="flex items-center gap-2">
-                    <Users className="h-4 w-4" />
-                    Finding contributors
+
+                  <div className="bg-black/80 dark:bg-black/50 text-emerald-400 p-4 rounded-lg font-mono text-xs text-left h-24 overflow-y-auto mt-6 flex flex-col justify-end">
+                    <div className="opacity-75">
+                      {">"} Initializing analysis engine...
+                    </div>
+                    <div className="animate-fade-in-up">
+                      {">"} {job?.progressMessage || "Waiting for worker..."}
+                      <span className="animate-pulse">_</span>
+                    </div>
                   </div>
                 </div>
               </div>

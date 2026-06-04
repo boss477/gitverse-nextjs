@@ -198,6 +198,7 @@ finally {
 </DropdownMenu>
 </div>
 </div>
+</div>
           </CardContent>
         </Card>
         {/* Results Count */}

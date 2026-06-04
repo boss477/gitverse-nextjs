@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, Children, isValidElement } from "react";
+import { useState, useMemo, Children, isValidElement } from "react";
 import {
   AlertTriangle,
   GitBranch,
@@ -21,7 +21,9 @@ import {
   Check,
   RefreshCw,
   Loader2,
+  Package,
 } from "lucide-react";
+import Link from "next/link";
 import {
   Card,
   CardHeader,
@@ -486,6 +488,16 @@ export const RepositoryOverview = ({
               <span className="px-2 py-1 rounded-full text-xs bg-accent/10 text-accent flex-shrink-0">
                 {repository.language}
               </span>
+              {repositoryData?.parent && (
+                <Link
+                  href={`/repo/${repositoryData.parent.id}`}
+                  className="px-2 py-1 rounded-full text-xs bg-primary/10 text-primary flex items-center gap-1 hover:bg-primary/20 transition-colors flex-shrink-0"
+                  title="View Parent Repository"
+                >
+                  <Package className="h-3 w-3" />
+                  Part of {repositoryData.parent.name}
+                </Link>
+              )}
             </div>
             <p className="text-xs sm:text-sm text-muted-foreground mb-3 break-words">
               {repository.description}
@@ -639,6 +651,42 @@ export const RepositoryOverview = ({
 
         <FolderImportanceGuide />
       </div>
+
+      {/* Monorepo Sub-packages */}
+      {repositoryData?.subPackages && repositoryData.subPackages.length > 0 && (
+        <Card className="glass border border-primary/20 bg-primary/5">
+          <CardHeader className="p-4 sm:p-6 pb-2">
+            <CardTitle className="font-heading text-lg sm:text-xl flex items-center gap-2 text-primary">
+              <Package className="h-5 w-5" />
+              Monorepo Workspaces
+            </CardTitle>
+            <CardDescription className="text-xs sm:text-sm">
+              This repository contains multiple packages. Select one to view its isolated analysis.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="p-4 sm:p-6 pt-2">
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
+              {repositoryData.subPackages.map((subPkg: any) => (
+                <Link
+                  key={subPkg.id}
+                  href={`/repo/${subPkg.id}`}
+                  className="p-3 rounded-xl border border-border/50 bg-background/50 hover:bg-background/80 hover:border-primary/50 transition-all group flex flex-col gap-1"
+                >
+                  <div className="font-medium flex items-center justify-between">
+                    <span className="truncate">{subPkg.targetDirectory}</span>
+                    <ExternalLink className="h-3.5 w-3.5 text-muted-foreground group-hover:text-primary transition-colors flex-shrink-0" />
+                  </div>
+                  <div className="text-xs text-muted-foreground flex items-center gap-2">
+                    <span className="flex items-center gap-1">
+                      <Clock className="h-3 w-3" /> {subPkg.status}
+                    </span>
+                  </div>
+                </Link>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Repository Stats Grid */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">

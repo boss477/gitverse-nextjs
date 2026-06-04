@@ -90,6 +90,16 @@ export class GeminiService {
       ) {
         throw new Error("Gemini API quota exceeded. Please try again later.");
       }
+      
+      if (
+        message.includes("400 bad request") || 
+        message.includes("token limit") || 
+        message.includes("maximum context length") ||
+        message.includes("too large") ||
+        error?.status === 400
+      ) {
+        throw new Error("Repository or payload is too large for AI analysis context limit. Please try again with a smaller scope.");
+      }
 
       throw new Error(`AI analysis failed: ${error.message}`);
     }
@@ -151,6 +161,16 @@ export class GeminiService {
       ) {
         throw new Error("Gemini API quota exceeded. Please try again later.");
       }
+      
+      if (
+        message.includes("400 bad request") || 
+        message.includes("token limit") || 
+        message.includes("maximum context length") ||
+        message.includes("too large") ||
+        error?.status === 400
+      ) {
+        throw new Error("Repository or payload is too large for AI analysis context limit. Please try again with a smaller scope.");
+      }
 
       throw new Error(`AI analysis failed: ${error.message}`);
     }
@@ -183,6 +203,16 @@ export class GeminiService {
         message.includes("429")
       ) {
         throw new Error("Gemini API quota exceeded. Please try again later.");
+      }
+      
+      if (
+        message.includes("400 bad request") || 
+        message.includes("token limit") || 
+        message.includes("maximum context length") ||
+        message.includes("too large") ||
+        error?.status === 400
+      ) {
+        throw new Error("Context is too large for AI chat. Please try again with a smaller scope.");
       }
 
       throw new Error(`AI chat failed: ${error.message}`);
@@ -239,6 +269,16 @@ export class GeminiService {
         throw new Error("Gemini API quota exceeded. Please try again later.");
       }
 
+      if (
+        message.includes("400 bad request") || 
+        message.includes("token limit") || 
+        message.includes("maximum context length") ||
+        message.includes("too large") ||
+        error?.status === 400
+      ) {
+        throw new Error("Prompt is too large for AI context limit. Please try again with a smaller scope.");
+      }
+
       throw new Error(`AI chat failed: ${error.message}`);
     }
   }
@@ -252,6 +292,12 @@ export class GeminiService {
     deleted: string[];
     diff?: string;
   }): Promise<string[]> {
+    // Truncate diff to fit safely within context limits (approx 100k chars ~ 25k tokens)
+    const MAX_DIFF_LENGTH = 100000;
+    const safeDiff = changes.diff 
+      ? (changes.diff.length > MAX_DIFF_LENGTH ? changes.diff.substring(0, MAX_DIFF_LENGTH) + "\n...[Diff truncated]" : changes.diff)
+      : "";
+
     const prompt = `
 Generate 3 conventional commit messages for the following code changes:
 
@@ -259,7 +305,7 @@ Added files: ${changes.added.join(", ") || "none"}
 Modified files: ${changes.modified.join(", ") || "none"}
 Deleted files: ${changes.deleted.join(", ") || "none"}
 
-${changes.diff ? `Diff:\n${changes.diff.substring(0, 1000)}` : ""}
+${safeDiff ? `Diff:\n${safeDiff}` : ""}
 
 Format: type(scope): subject
 Examples: feat(auth): add login endpoint, fix(ui): resolve button alignment
@@ -423,7 +469,13 @@ Provide a concise, high-level summary of the modules, components, and responsibi
     analysisType: string,
     context?: string,
   ): string {
-    const basePrompt = `Language: ${language}\n${context ? `Context: ${context}\n` : ""}\n\nCode:\n\`\`\`${language}\n${code}\n\`\`\`\n\n`;
+    // Truncate code to ~150000 characters to prevent API 400 Context Overflow
+    const MAX_CODE_LENGTH = 150000;
+    const truncatedCode = code.length > MAX_CODE_LENGTH 
+      ? code.substring(0, MAX_CODE_LENGTH) + "\n...[Code truncated due to length limits]" 
+      : code;
+
+    const basePrompt = `Language: ${language}\n${context ? `Context: ${context}\n` : ""}\n\nCode:\n\`\`\`${language}\n${truncatedCode}\n\`\`\`\n\n`;
 
     switch (analysisType) {
       case "explain":

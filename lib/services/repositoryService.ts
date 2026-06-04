@@ -117,12 +117,19 @@ export class RepositoryService {
         throw new Error(`Repository exceeds maximum allowed size of 500MB (${(remoteSize / 1024 / 1024).toFixed(2)}MB).`);
       }
 
-      // For README we don't need all branches; keep it lightweight.
-      gitService = await GitService.cloneRepository(repository.url, tempDir, {
-        depth: 1,
-        noSingleBranch: false,
-        accessToken: token,
-      });
+      const readmeController = new AbortController();
+      const readmeTimeout = setTimeout(() => readmeController.abort(), 5 * 60 * 1000);
+
+      try {
+        gitService = await GitService.cloneRepository(repository.url, tempDir, {
+          depth: 1,
+          noSingleBranch: false,
+          accessToken: token,
+          signal: readmeController.signal,
+        });
+      } finally {
+        clearTimeout(readmeTimeout);
+      }
 
       const scopedPath = repository.targetDirectory
         ? path.join(tempDir, repository.targetDirectory)
@@ -292,7 +299,14 @@ export class RepositoryService {
 
       checkAborted();
 
-      await report({ progressPercent: 9, progressMessage: "Checking AI context configuration" });
+      // Check for monorepo workspaces if this is the root project
+      let subPackages: string[] = [];
+      if (!repository.targetDirectory) {
+        await report({ progressPercent: 9, progressMessage: "Detecting Monorepo sub-packages..." });
+        subPackages = await detectMonorepoPackages(tempDir);
+      }
+
+      await report({ progressPercent: 10, progressMessage: "Checking AI context configuration" });
 
       let knowledgeJson: ParsedRepositoryKnowledge | undefined = undefined;
       let knowledgeMd: ParsedRepositoryKnowledge | undefined = undefined;
@@ -319,7 +333,7 @@ export class RepositoryService {
       });
       const [size, branches] = await Promise.all([
         gitService.getRepositorySize(),
-        gitService.getBranches(),
+        gitService.getBranches(signal),
       ]);
 
       checkAborted();
@@ -330,7 +344,7 @@ export class RepositoryService {
         progressPercent: 25,
         progressMessage: "Fetching commit history...",
       });
-      const commits = await gitService.getCommits("--all", 1000);
+      const commits = await gitService.getCommits("--all", 1000, signal);
 
       checkAborted();
 
@@ -338,7 +352,7 @@ export class RepositoryService {
         progressPercent: 65,
         progressMessage: "Scanning files",
       });
-      const files = await gitService.getFileTree(opts?.scope || repository.targetDirectory || undefined);
+      const files = await gitService.getFileTree(opts?.scope || repository.targetDirectory || undefined, signal);
       checkAborted();
 
       await report({
@@ -351,8 +365,8 @@ export class RepositoryService {
       });
 
       const [contributors, languages] = await Promise.all([
-        gitService.getContributors(),
-        gitService.detectLanguages(repository.targetDirectory ?? undefined),
+        gitService.getContributors(signal),
+        gitService.detectLanguages(repository.targetDirectory ?? undefined, signal),
       ]);
 
       checkAborted();
@@ -593,6 +607,38 @@ export class RepositoryService {
         console.warn("Gemini cache invalidation failed:", error);
       }
 
+      // Automatically queue AnalysisJobs for any detected Monorepo sub-packages
+      if (subPackages.length > 0) {
+        await report({ progressPercent: 98, progressMessage: "Queueing sub-package analysis..." });
+        for (const pkgPath of subPackages) {
+          try {
+            const subRepo = await this.createRepository({
+              name: `${repository.name}/${pkgPath}`,
+              url: repository.url,
+              userId: repository.userId,
+              targetDirectory: pkgPath,
+              isPrivate: repository.isPrivate,
+            });
+
+            await prisma.repository.update({
+              where: { id: subRepo.id },
+              data: { parentId: repository.id }
+            });
+
+            await prisma.analysisJob.create({
+              data: {
+                repositoryId: subRepo.id,
+                userId: repository.userId,
+                status: "QUEUED",
+                type: "repository_analysis",
+              },
+            });
+          } catch (e) {
+            console.warn(`Failed to queue analysis for sub-package ${pkgPath}:`, e);
+          }
+        }
+      }
+
       await report({ progressPercent: 100, progressMessage: "Completed" });
 
     } catch (error: any) {
@@ -777,6 +823,8 @@ export class RepositoryService {
           take: 500,
         },
         knowledge: true,
+        subPackages: true,
+        parent: true,
       },
     });
 
@@ -795,12 +843,14 @@ export class RepositoryService {
             contributors: true,
             files: true,
             branches: true,
+            subPackages: true,
           },
         },
         languages: {
           orderBy: { percentage: "desc" },
           take: 3,
         },
+        parent: true,
       },
       orderBy: [
         { createdAt: "desc" },

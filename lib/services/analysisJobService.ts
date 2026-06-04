@@ -80,8 +80,6 @@ export class AnalysisJobService {
     scope?: string;
   }): Promise<AnalysisJob> {
     return prisma.$transaction(async (tx) => {
-      await tx.$queryRaw`SELECT pg_advisory_xact_lock(${params.repositoryId})`;
-
       const existing = await tx.analysisJob.findFirst({
         where: {
           repositoryId: params.repositoryId,
@@ -387,7 +385,10 @@ export class AnalysisJobService {
     const stale = await prisma.analysisJob.updateMany({
       where: {
         status: "PROCESSING",
-        lockExpiresAt: { lt: new Date() },
+        OR: [
+          { lockExpiresAt: { lt: new Date() } },
+          { lockExpiresAt: null }
+        ],
         updatedAt: { lt: new Date(Date.now() - gracePeriodMs) },
       },
       data: {

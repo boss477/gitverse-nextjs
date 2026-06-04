@@ -38,12 +38,20 @@ export async function POST(
     let parsedKnowledge;
 
     try {
-      const token = await getGithubAccessToken(user.userId);
-      gitService = await GitService.cloneRepository(repository.url, tempDir, { 
-        depth: 1, 
-        noSingleBranch: false,
-        accessToken: token
-      });
+      const refreshController = new AbortController();
+      const refreshTimeout = setTimeout(() => refreshController.abort(), 5 * 60 * 1000);
+
+      try {
+        const token = await getGithubAccessToken(user.userId);
+        gitService = await GitService.cloneRepository(repository.url, tempDir, {
+          depth: 1,
+          noSingleBranch: false,
+          accessToken: token,
+          signal: refreshController.signal,
+        });
+      } finally {
+        clearTimeout(refreshTimeout);
+      }
       
       let knowledgeJson = undefined;
       let knowledgeMd = undefined;
