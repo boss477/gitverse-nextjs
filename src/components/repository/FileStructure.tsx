@@ -455,7 +455,7 @@ export const FileStructure = ({ repository }: FileStructureProps) => {
           <CardDescription>*Click on a file for more info*</CardDescription>
         </CardHeader>
         <CardContent>
-          <div className="border border-border/50 rounded-lg p-4 bg-background/50 max-h-[600px] overflow-y-auto">
+          <div className="border border-border/50 rounded-lg p-4 bg-background/50 max-h-[600px] overflow-y-auto custom-scrollbar">
             <FileTreeNode
               node={fileTree}
               onFileSelect={handleFileSelect}
@@ -471,7 +471,7 @@ export const FileStructure = ({ repository }: FileStructureProps) => {
           onClick={() => setSelectedFile(null)}
         >
           <Card
-            className="glass max-w-[90vw] w-full lg:max-w-5xl h-[90vh] flex flex-col animate-fade-in-up relative"
+            className="glass max-w-[90vw] w-full lg:max-w-5xl h-[90vh] flex flex-col animate-fade-in-up relative overflow-y-auto custom-scrollbar"
             onClick={(e: React.MouseEvent) => {
               e.stopPropagation();
               const target = e.target as HTMLElement;

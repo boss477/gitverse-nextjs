@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
+import { isInternalWorkerAuthorized } from "@/lib/utils/internalAuth";
 import { GitHubAppService } from "@/lib/services/githubAppService";
 import { GitHubService } from "@/lib/services/githubService";
 import {
@@ -23,6 +24,7 @@ import { CheckRecoveryService } from "@/lib/services/check-recovery";
 import { webhookQueue } from "@/lib/services/webhook-queue";
 import { PRImpactAnalysisService } from "@/lib/services/prImpactAnalysisService";
 import { RepositorySyncQueue } from "@/lib/services/repositorySyncQueue";
+import { classifyRetry } from "@/lib/utils/retry";
 
 export const runtime = "nodejs";
 export const maxDuration = 300; // 5 minutes max duration for Vercel
