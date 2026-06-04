@@ -116,6 +116,13 @@ export async function getAuthUser(
           jwtTokenVersion != null &&
           jwtTokenVersion !== dbUser.tokenVersion
         ) {
+          try {
+            request.cookies.delete("next-auth.session-token");
+            request.cookies.delete("next-auth.csrf-token");
+            request.cookies.delete("next-auth.callback-url");
+          } catch {
+            // Best-effort cookie clearing
+          }
           return null;
         }
 
