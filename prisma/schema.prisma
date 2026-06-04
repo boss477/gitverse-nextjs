@@ -199,41 +199,42 @@ model VerificationToken {
 }
 
 model Repository {
-  id                  Int                           @id @default(autoincrement())
-  name                String
-  url                 String
-  description         String?
-  targetDirectory     String?                       @map("target_directory")
-  readmePath          String?                       @map("readme_path")
-  readmeText          String?                       @map("readme_text") @db.Text
-  readmeFetchedAt     DateTime?                     @map("readme_fetched_at")
-  defaultBranch       String                        @default("main") @map("default_branch")
-  isPrivate           Boolean                       @default(false) @map("is_private")
-  inheritedRegion     DataResidencyRegion?          @map("inherited_region")
-  overrideAllowed     Boolean                       @default(false) @map("override_allowed")
-  stars               Int                           @default(0)
-  forks               Int                           @default(0)
-  size                Int                           @default(0) // Size in bytes
-  lastAnalyzedAt      DateTime?                     @map("last_analyzed_at")
-  status              String                        @default("pending") // pending, analyzing, completed, failed
-  userId              Int                           @map("user_id")
-  user                User                          @relation(fields: [userId], references: [id], onDelete: Cascade)
-  createdAt           DateTime                      @default(now()) @map("created_at")
-  updatedAt           DateTime                      @updatedAt @map("updated_at")
-  branches            Branch[]
-  commits             Commit[]
-  files               File[]
-  contributors        Contributor[]
-  languages           Language[]
-  analysisJobs        AnalysisJob[]
-  geminiAnalysisCache GeminiAnalysisCache[]
-  securitySandboxes   SecuritySandbox[]
-  reviewPolicies      ReviewPolicy[]
-  policyAssignment    RepositoryPolicyAssignment?
-  mapAnnotations      MapAnnotation[]
-  knowledge           RepositoryKnowledge?
-  syncJobs            RepositorySyncJob[]
-  lastSynchronizedAt  DateTime?                   @map("last_synchronized_at")
+  id                           Int                           @id @default(autoincrement())
+  name                         String
+  url                          String
+  description                  String?
+  targetDirectory              String?                       @map("target_directory")
+  readmePath                   String?                       @map("readme_path")
+  readmeText                   String?                       @map("readme_text") @db.Text
+  readmeFetchedAt              DateTime?                     @map("readme_fetched_at")
+  defaultBranch                String                        @default("main") @map("default_branch")
+  isPrivate                    Boolean                       @default(false) @map("is_private")
+  inheritedRegion              DataResidencyRegion?          @map("inherited_region")
+  overrideAllowed              Boolean                       @default(false) @map("override_allowed")
+  stars                        Int                           @default(0)
+  forks                        Int                           @default(0)
+  size                         Int                           @default(0) // Size in bytes
+  lastAnalyzedAt               DateTime?                     @map("last_analyzed_at")
+  status                       String                        @default("pending") // pending, analyzing, completed, failed
+  userId                       Int                           @map("user_id")
+  user                         User                          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt                    DateTime                      @default(now()) @map("created_at")
+  updatedAt                    DateTime                      @updatedAt @map("updated_at")
+  branches                     Branch[]
+  commits                      Commit[]
+  files                        File[]
+  contributors                 Contributor[]
+  languages                    Language[]
+  analysisJobs                 AnalysisJob[]
+  geminiAnalysisCache          GeminiAnalysisCache[]
+  securitySandboxes            SecuritySandbox[]
+  reviewPolicies               ReviewPolicy[]
+  policyAssignment             RepositoryPolicyAssignment?
+  mapAnnotations               MapAnnotation[]
+  knowledge                    RepositoryKnowledge?
+  syncJobs                     RepositorySyncJob[]
+  lastSynchronizedAt           DateTime?                     @map("last_synchronized_at")
+  repositoryArchitectureChunks RepositoryArchitectureChunk[]
 
   @@index([url])
   @@index([userId])
