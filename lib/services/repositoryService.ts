@@ -8,14 +8,28 @@ import {
   invalidateCacheForCommit,
   invalidateExpiredCacheEntries,
 } from "./geminiAnalysisCacheService";
+import { ttlCache, TTL, repoStatsCacheKey } from "../utils/ttlCache";
+
+/** Shape returned by getRepositoryStats / _fetchRepositoryStats. */
+interface RepoStats {
+  totalCommits: number;
+  totalContributors: number;
+  totalFiles: number;
+  totalBranches: number;
+  recentActivity: {
+    shortHash: string;
+    message: string;
+    authorName: string;
+    committedAt: Date;
+  }[];
+  status: string;
+  lastAnalyzedAt: Date | null;
+import { invalidateGeminiAnalysisCacheForRepository } from "./geminiAnalysisCacheService";
 import { FileChangeType } from "@prisma/client";
 import { repoSyncLimiter } from "../utils/concurrencyLimiter";
 import { withDbRetry } from "../utils/dbRetry";
 import { gitverseConfigParser, ParsedRepositoryKnowledge } from "../parsers/gitverseConfigParser";
 import { repositoryKnowledgeService } from "./repositoryKnowledgeService";
-import { getGeminiService } from "./geminiService";
-import { getGithubAccessToken } from "./githubAuthService";
-import { detectMonorepoPackages } from "../utils/monorepoUtils";
 
 function yieldIfHighMemory(threshold?: number): Promise<void> {
   if (threshold === undefined) {
@@ -647,6 +661,9 @@ export class RepositoryService {
         }
       }
 
+      // Invalidate cached stats — analysis has changed commits, files, contributors, etc.
+      ttlCache.deleteByPrefix(`repo-stats:${repositoryId}:`);
+
       await report({ progressPercent: 100, progressMessage: "Completed" });
 
     } catch (error: any) {
@@ -655,6 +672,9 @@ export class RepositoryService {
         where: { id: repositoryId },
         data: { status: "failed" },
       });
+      // Invalidate cached stats — status has changed to "failed".
+      ttlCache.deleteByPrefix(`repo-stats:${repositoryId}:`);
+      await report({ progressMessage: "Failed" });
       await report({ progressMessage: "Analysis failed. Please try again." });
       throw error;
     } finally {
@@ -860,10 +880,7 @@ export class RepositoryService {
         },
         parent: true,
       },
-      orderBy: [
-        { createdAt: "desc" },
-        { id: "desc" } // Deterministic tie-breaker
-      ],
+      orderBy: { id: "desc" },
     });
 
     let nextCursor: number | undefined = undefined;
@@ -891,6 +908,31 @@ export class RepositoryService {
       throw new Error("Repository not found");
     }
 
+    await prisma.$transaction([
+      // Explicitly delete file changes linked to commits of this repository
+      prisma.fileChange.deleteMany({
+        where: { commit: { repositoryId: id } },
+      }),
+      // Explicitly delete commits to prevent orphaned relational data
+      prisma.commit.deleteMany({
+        where: { repositoryId: id },
+      }),
+      // Explicitly delete analysis jobs
+      prisma.analysisJob.deleteMany({
+        where: { repositoryId: id },
+      }),
+      // Repository deletion handles the rest via Cascade
+      prisma.repository.delete({
+        where: { id },
+      }),
+    ]);
+    await prisma.repository.delete({
+      where: { id },
+    });
+
+    // Invalidate cached stats — repository no longer exists.
+    ttlCache.deleteByPrefix(`repo-stats:${id}:`);
+
     return { success: true };
   }
   //Explicitly set the status of a repository
@@ -906,8 +948,30 @@ export class RepositoryService {
 
   /**
    * Get repository statistics
+   *
+   * Results are cached in-process for TTL.REPO_STATS (5 minutes) to avoid
+   * repeated DB round-trips for the same repo. The cache is invalidated
+   * automatically when analysis completes, fails, or the repo is deleted.
    */
   async getRepositoryStats(id: number, userId: number) {
+    const cacheKey = repoStatsCacheKey(id, userId);
+
+    // Return cached result if still fresh.
+    const cached = ttlCache.get<RepoStats>(cacheKey);
+    if (cached !== undefined) {
+      return cached;
+    }
+
+    const stats = await this._fetchRepositoryStats(id, userId);
+
+    // Populate cache.
+    ttlCache.set(cacheKey, stats, TTL.REPO_STATS);
+
+    return stats;
+  }
+
+  /** Raw DB fetch for repository stats — called by getRepositoryStats. */
+  private async _fetchRepositoryStats(id: number, userId: number): Promise<RepoStats> {
     const repository = await prisma.repository.findFirst({
       where: { id, userId },
     });

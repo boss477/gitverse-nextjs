@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { isHttpError, requireAuth, sanitizeError } from "@/lib/middleware";
 import { repositoryService } from "@/lib/services/repositoryService";
 import { analysisJobService } from "@/lib/services/analysisJobService";
+import { ttlCache } from "@/lib/utils/ttlCache";
 import { apiError } from "@/lib/api-error";
 import { isValidGitScope } from "@/lib/utils/validators";
 
@@ -34,6 +35,9 @@ export async function POST(
       userId: user.userId,
       scope,
     });
+
+    // Invalidate cached stats — repo status is now "analyzing" / queued.
+    ttlCache.deleteByPrefix(`repo-stats:${id}:`);
 
     return NextResponse.json(
       { message: "Job queued", jobId: job.id, status: job.status },

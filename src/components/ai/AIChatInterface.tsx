@@ -1,6 +1,6 @@
 import { Input } from "@/components/ui/Input";
 import { useState, useRef, useEffect } from "react";
-import { Send, Loader2, Sparkles, User, Bot, Copy, Check } from "lucide-react";
+import { Send, Loader2, Sparkles, User, Bot, Copy, Check, Square } from "lucide-react";
 import { Card } from "@/components/ui";
 import { geminiService, ChatMessage } from "@/services/gemini";
 import { useToast } from "@/hooks/use-toast";
@@ -133,8 +133,18 @@ export function AIChatInterface({ repositoryContext }: AIChatInterfaceProps) {
   const [streamingMessage, setStreamingMessage] = useState("");
   const [copiedIndex, setCopiedIndex] = useState<number | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const abortControllerRef = useRef<AbortController | null>(null);
   const { toast } = useToast();
   const { isAuthenticated, isLoading: isAuthLoading } = useAuth();
+
+  const handleStop = () => {
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+      abortControllerRef.current = null;
+    }
+    setIsLoading(false);
+  };
+
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -181,14 +191,18 @@ export function AIChatInterface({ repositoryContext }: AIChatInterfaceProps) {
     };
 
     setMessages((prev) => [...prev, userMessage]);
+    const currentInput = input;
     setInput("");
     setIsLoading(true);
     setStreamingMessage("");
 
+    const controller = new AbortController();
+    abortControllerRef.current = controller;
+
+    let fullResponse = "";
     try {
-      let fullResponse = "";
       // Pass the current messages array as history (excluding the current prompt which is appended by chatRaw)
-      const stream = geminiService.chatStream(input, repositoryContext, messages);
+      const stream = geminiService.chatStream(currentInput, repositoryContext, messages, controller.signal);
 
       for await (const chunk of stream) {
         fullResponse += chunk;
@@ -203,16 +217,34 @@ export function AIChatInterface({ repositoryContext }: AIChatInterfaceProps) {
 
       setMessages((prev) => [...prev, assistantMessage]);
       setStreamingMessage("");
-    } catch (error) {
-      console.error("Chat error:", error);
-      toast({
-        title: "Error",
-        description:
-          error instanceof Error ? error.message : "Failed to get AI response",
-        variant: "destructive",
-      });
+    } catch (error: any) {
+      if (error.name === "AbortError") {
+        console.log("Chat generation aborted by user.");
+        if (fullResponse) {
+          setMessages((prev) => [
+            ...prev,
+            {
+              role: "assistant",
+              content: fullResponse + " _[Generation stopped by user]_",
+              timestamp: new Date(),
+            },
+          ]);
+        }
+        setStreamingMessage("");
+      } else {
+        console.error("Chat error:", error);
+        toast({
+          title: "Error",
+          description:
+            error instanceof Error ? error.message : "Failed to get AI response",
+          variant: "destructive",
+        });
+      }
     } finally {
       setIsLoading(false);
+      if (abortControllerRef.current === controller) {
+        abortControllerRef.current = null;
+      }
     }
   };
 
@@ -366,6 +398,16 @@ export function AIChatInterface({ repositoryContext }: AIChatInterfaceProps) {
             className="flex-1 glass px-4 py-3 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/50 transition-all"
             disabled={isLoading}
           />
+          {isLoading && (
+            <button
+              type="button"
+              onClick={handleStop}
+              className="bg-destructive/10 border border-destructive/20 text-destructive hover:bg-destructive/20 px-4 py-3 rounded-lg transition-all duration-300 flex items-center gap-2"
+            >
+              <Square className="h-4 w-4 fill-destructive" />
+              <span className="hidden sm:inline">Stop</span>
+            </button>
+          )}
           <button
             type="submit"
             disabled={!input.trim() || isLoading}

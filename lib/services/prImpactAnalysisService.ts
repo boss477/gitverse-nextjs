@@ -28,7 +28,19 @@ export class PRImpactAnalysisService {
       try {
         const knowledge = await repositoryKnowledgeService.getKnowledge(repoId);
         if (knowledge && knowledge.architecturePrinciples) {
-          architecturePrinciples = JSON.parse(knowledge.architecturePrinciples as string) || [];
+          const ap = knowledge.architecturePrinciples;
+          if (Array.isArray(ap)) {
+            architecturePrinciples = ap.filter((x): x is string => typeof x === "string");
+          } else if (typeof ap === "string") {
+            try {
+              const parsed = JSON.parse(ap);
+              if (Array.isArray(parsed)) {
+                architecturePrinciples = parsed.filter((x): x is string => typeof x === "string");
+              }
+            } catch {
+              // ignore
+            }
+          }
         }
       } catch (e) {
         console.warn("Failed to fetch repository knowledge for impact analysis:", e);

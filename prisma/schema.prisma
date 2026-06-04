@@ -93,6 +93,11 @@ model GitHubRepo {
   @@unique([userId, repoFullName])
   @@index([installationId])
   @@index([enabled])
+  @@index([updatedAt])
+  // pr-reviews / repositories / connected-repos: WHERE userId ORDER BY enabled DESC, repoFullName ASC
+  @@index([userId, enabled(sort: Desc), repoFullName(sort: Asc)])
+  // sync / delete: WHERE userId AND installationId IS NOT NULL
+  @@index([userId, installationId])
   @@map("github_repos")
 }
 
@@ -172,6 +177,8 @@ model Account {
   @@unique([provider, providerAccountId])
   // Index on userId for fast lookup of all accounts belonging to a user
   @@index([userId])
+  // auth checks: WHERE userId + provider (count calls on every login/signup)
+  @@index([userId, provider])
   // Index on provider to speed up OAuth provider-based queries (e.g. filtering by provider: "google")
   @@index([provider])
   @@map("accounts")
@@ -199,41 +206,6 @@ model VerificationToken {
 }
 
 model Repository {
-  id                  Int                         @id @default(autoincrement())
-  name                String
-  url                 String
-  description         String?
-  targetDirectory     String?                     @map("target_directory")
-  readmePath          String?                     @map("readme_path")
-  readmeText          String?                     @map("readme_text") @db.Text
-  readmeFetchedAt     DateTime?                   @map("readme_fetched_at")
-  defaultBranch       String                      @default("main") @map("default_branch")
-  isPrivate           Boolean                     @default(false) @map("is_private")
-  inheritedRegion     DataResidencyRegion?        @map("inherited_region")
-  overrideAllowed     Boolean                     @default(false) @map("override_allowed")
-  stars               Int                         @default(0)
-  forks               Int                         @default(0)
-  size                Int                         @default(0) // Size in bytes
-  lastAnalyzedAt      DateTime?                   @map("last_analyzed_at")
-  status              String                      @default("pending") // pending, analyzing, completed, failed
-  userId              Int                         @map("user_id")
-  user                User                        @relation(fields: [userId], references: [id], onDelete: Cascade)
-  createdAt           DateTime                    @default(now()) @map("created_at")
-  updatedAt           DateTime                    @updatedAt @map("updated_at")
-  branches            Branch[]
-  commits             Commit[]
-  files               File[]
-  contributors        Contributor[]
-  languages           Language[]
-  analysisJobs        AnalysisJob[]
-  geminiAnalysisCache GeminiAnalysisCache[]
-  securitySandboxes   SecuritySandbox[]
-  reviewPolicies      ReviewPolicy[]
-  policyAssignment    RepositoryPolicyAssignment?
-  mapAnnotations      MapAnnotation[]
-  knowledge           RepositoryKnowledge?
-  syncJobs            RepositorySyncJob[]
-  lastSynchronizedAt  DateTime?                   @map("last_synchronized_at")
   id                           Int                           @id @default(autoincrement())
   name                         String
   url                          String
@@ -250,12 +222,9 @@ model Repository {
   forks                        Int                           @default(0)
   size                         Int                           @default(0) // Size in bytes
   lastAnalyzedAt               DateTime?                     @map("last_analyzed_at")
-  status                       String                        @default("pending") // pending, analyzing, completed, failed
+  status              String                      @default("pending") // pending, analyzing, completed, failed
   userId                       Int                           @map("user_id")
   user                         User                          @relation(fields: [userId], references: [id], onDelete: Cascade)
-  parentId                     Int?                          @map("parent_id")
-  parent                       Repository?                   @relation("MonorepoPackages", fields: [parentId], references: [id])
-  subPackages                  Repository[]                  @relation("MonorepoPackages")
   createdAt                    DateTime                      @default(now()) @map("created_at")
   updatedAt                    DateTime                      @updatedAt @map("updated_at")
   branches                     Branch[]
@@ -274,10 +243,13 @@ model Repository {
   lastSynchronizedAt           DateTime?                     @map("last_synchronized_at")
   repositoryArchitectureChunks RepositoryArchitectureChunk[]
 
-  // Index for cross-user URL lookups (e.g. admin queries, analytics)
   @@index([url])
   // Index for fast listing of all repos belonging to a user
   @@index([userId])
+  // listRepositories: WHERE userId ORDER BY createdAt DESC
+  @@index([userId, createdAt(sort: Desc)])
+  // createRepository duplicate check: WHERE url + userId
+  @@index([userId, url])
   // Composite index for duplicate-check query in createRepository (url + userId + targetDirectory)
   @@index([userId, url, targetDirectory])
   // Composite index for name-uniqueness check in createRepository (name + userId)
@@ -350,6 +322,12 @@ model AnalysisJob {
   @@index([status, nextRunAt])
   // Worker lock cleanup: find and release expired locks
   @@index([lockExpiresAt])
+  @@index([repositoryId])
+  @@index([userId])
+  @@index([status, lockExpiresAt, nextRunAt])
+  // GET /api/repositories/[id]: WHERE repositoryId + userId ORDER BY createdAt DESC
+  @@index([repositoryId, userId, createdAt(sort: Desc)])
+  @@map("analysis_jobs")
   // List all jobs for a repository sorted by newest first
   @@index([repositoryId, createdAt(sort: Desc)])
   // List all jobs for a user sorted by newest first
@@ -371,6 +349,8 @@ model Branch {
   updatedAt    DateTime   @updatedAt @map("updated_at")
 
   @@unique([repositoryId, name])
+  // getRepository: ORDER BY isDefault DESC scoped to a repo
+  @@index([repositoryId, isDefault(sort: Desc)])
   @@map("branches")
 }
 
@@ -452,6 +432,8 @@ model FileChange {
 
   @@index([fileId])
   @@index([commitId])
+  // FK for onDelete: SetNull cascade and future file-scoped change queries
+  @@index([fileId])
   @@map("file_changes")
 }
 
@@ -472,6 +454,8 @@ model Contributor {
   updatedAt    DateTime   @updatedAt @map("updated_at")
 
   @@unique([repositoryId, email])
+  // getRepository: ORDER BY commits DESC scoped to a repo
+  @@index([repositoryId, commits(sort: Desc)])
   @@map("contributors")
 }
 
@@ -487,6 +471,8 @@ model Language {
   createdAt    DateTime   @default(now()) @map("created_at")
 
   @@unique([repositoryId, name])
+  // getRepository + listRepositories: ORDER BY percentage DESC scoped to a repo
+  @@index([repositoryId, percentage(sort: Desc)])
   // Index for fast language lookup per repository
   @@index([repositoryId])
   @@map("languages")
