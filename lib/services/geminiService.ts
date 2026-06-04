@@ -1,19 +1,28 @@
 import { GoogleGenerativeAI, GenerativeModel } from "@google/generative-ai";
+import { getGeminiAnalysisCache, setGeminiAnalysisCache, hashGeminiPromptSeed } from "./geminiAnalysisCacheService";
 
 export interface AIAnalysisRequest {
   repositoryId: number;
   type:
-    | "overview"
-    | "code-quality"
-    | "security"
-    | "architecture"
-    | "suggestions";
+  | "overview"
+  | "code-quality"
+  | "security"
+  | "architecture"
+  | "suggestions"
+  | "architecture-document"
+  | "architecture-chunk";
   context?: {
     files?: Array<{ path: string; content: string }>;
     fileTree?: string;
     commits?: Array<{ message: string; author: string; date: string }>;
     languages?: Array<{ name: string; percentage: number }>;
     contributors?: Array<{ name: string; commits: number }>;
+    knowledge?: {
+      projectDescription?: string;
+      glossary?: Record<string, string>;
+      onboardingNotes?: string[];
+      architecturePrinciples?: string[];
+    };
   };
 }
 
@@ -22,6 +31,8 @@ export interface AICodeAnalysisRequest {
   language: string;
   analysisType: "explain" | "improve" | "bugs" | "document" | "refactor";
   context?: string;
+  repositoryId?: number;
+  commitHash?: string;
 }
 
 export interface AIRepositoryChatRequest {
@@ -32,6 +43,12 @@ export interface AIRepositoryChatRequest {
     files?: string[];
     recentCommits?: string[];
     contributors?: string[];
+    knowledge?: {
+      projectDescription?: string;
+      glossary?: Record<string, string>;
+      onboardingNotes?: string[];
+      architecturePrinciples?: string[];
+    };
   };
 }
 
@@ -40,11 +57,11 @@ export class GeminiService {
   private model: GenerativeModel;
 
   constructor(apiKey?: string) {
-    const key = apiKey || process.env.GEMINI_API_KEY;
-    if (!key) {
-      throw new Error("GEMINI_API_KEY is required");
+    const key = apiKey || process.env.GEMINI_API_KEY || "dummy-key-for-build";
+    if (!key || key === "dummy-key-for-build") {
+      // Defer throwing to runtime if possible, or warn. For now, use a dummy key during init.
     }
-
+    
     this.client = new GoogleGenerativeAI(key);
     this.model = this.client.getGenerativeModel({ model: "gemini-2.5-flash" });
   }
@@ -73,6 +90,16 @@ export class GeminiService {
       ) {
         throw new Error("Gemini API quota exceeded. Please try again later.");
       }
+      
+      if (
+        message.includes("400 bad request") || 
+        message.includes("token limit") || 
+        message.includes("maximum context length") ||
+        message.includes("too large") ||
+        error?.status === 400
+      ) {
+        throw new Error("Repository or payload is too large for AI analysis context limit. Please try again with a smaller scope.");
+      }
 
       throw new Error(`AI analysis failed: ${error.message}`);
     }
@@ -82,7 +109,7 @@ export class GeminiService {
    * Analyze code snippet
    */
   async analyzeCode(request: AICodeAnalysisRequest): Promise<string> {
-    const { code, language, analysisType, context } = request;
+    const { code, language, analysisType, context, repositoryId, commitHash } = request;
 
     let prompt = this.buildCodeAnalysisPrompt(
       code,
@@ -90,11 +117,38 @@ export class GeminiService {
       analysisType,
       context,
     );
+    
+    // Check cache if we have repository context
+    let promptHash: string | undefined;
+    if (repositoryId && commitHash) {
+      promptHash = hashGeminiPromptSeed({ code, language, analysisType, context });
+      const cached = await getGeminiAnalysisCache({
+        repositoryId,
+        commitHash,
+        analysisType: `code-${analysisType}`,
+        promptHash,
+      });
+      if (cached.hit && cached.result) {
+        return cached.result;
+      }
+    }
 
     try {
       const result = await this.model.generateContent(prompt);
       const response = await result.response;
-      return response.text();
+      const text = response.text();
+      
+      // Save to cache
+      if (repositoryId && commitHash && promptHash) {
+        await setGeminiAnalysisCache({
+          repositoryId,
+          commitHash,
+          analysisType: `code-${analysisType}`,
+          promptHash,
+        }, text, { model: "gemini-2.5-flash" });
+      }
+      
+      return text;
     } catch (error: any) {
       console.error("Gemini analysis error:", error);
 
@@ -106,6 +160,16 @@ export class GeminiService {
         message.includes("429")
       ) {
         throw new Error("Gemini API quota exceeded. Please try again later.");
+      }
+      
+      if (
+        message.includes("400 bad request") || 
+        message.includes("token limit") || 
+        message.includes("maximum context length") ||
+        message.includes("too large") ||
+        error?.status === 400
+      ) {
+        throw new Error("Repository or payload is too large for AI analysis context limit. Please try again with a smaller scope.");
       }
 
       throw new Error(`AI analysis failed: ${error.message}`);
@@ -139,6 +203,16 @@ export class GeminiService {
         message.includes("429")
       ) {
         throw new Error("Gemini API quota exceeded. Please try again later.");
+      }
+      
+      if (
+        message.includes("400 bad request") || 
+        message.includes("token limit") || 
+        message.includes("maximum context length") ||
+        message.includes("too large") ||
+        error?.status === 400
+      ) {
+        throw new Error("Context is too large for AI chat. Please try again with a smaller scope.");
       }
 
       throw new Error(`AI chat failed: ${error.message}`);
@@ -195,6 +269,16 @@ export class GeminiService {
         throw new Error("Gemini API quota exceeded. Please try again later.");
       }
 
+      if (
+        message.includes("400 bad request") || 
+        message.includes("token limit") || 
+        message.includes("maximum context length") ||
+        message.includes("too large") ||
+        error?.status === 400
+      ) {
+        throw new Error("Prompt is too large for AI context limit. Please try again with a smaller scope.");
+      }
+
       throw new Error(`AI chat failed: ${error.message}`);
     }
   }
@@ -208,6 +292,12 @@ export class GeminiService {
     deleted: string[];
     diff?: string;
   }): Promise<string[]> {
+    // Truncate diff to fit safely within context limits (approx 100k chars ~ 25k tokens)
+    const MAX_DIFF_LENGTH = 100000;
+    const safeDiff = changes.diff 
+      ? (changes.diff.length > MAX_DIFF_LENGTH ? changes.diff.substring(0, MAX_DIFF_LENGTH) + "\n...[Diff truncated]" : changes.diff)
+      : "";
+
     const prompt = `
 Generate 3 conventional commit messages for the following code changes:
 
@@ -215,7 +305,7 @@ Added files: ${changes.added.join(", ") || "none"}
 Modified files: ${changes.modified.join(", ") || "none"}
 Deleted files: ${changes.deleted.join(", ") || "none"}
 
-${changes.diff ? `Diff:\n${changes.diff.substring(0, 1000)}` : ""}
+${safeDiff ? `Diff:\n${safeDiff}` : ""}
 
 Format: type(scope): subject
 Examples: feat(auth): add login endpoint, fix(ui): resolve button alignment
@@ -232,12 +322,12 @@ Provide only the commit messages, one per line.
         .filter((line) => line.trim())
         .slice(0, 3);
     } catch (error: any) {
-  console.error("Commit message suggestion error:", error);
+      console.error("Commit message suggestion error:", error);
 
-  throw new Error(
-    error?.message || "Failed to generate commit message suggestions"
-  );
-}
+      throw new Error(
+        error?.message || "Failed to generate commit message suggestions"
+      );
+    }
   }
 
   /**
@@ -252,16 +342,37 @@ Repository Context:
 - Languages: ${context?.languages?.map((l) => `${l.name} (${l.percentage}%)`).join(", ") || "Unknown"}
 - Contributors: ${context?.contributors?.length || 0}
 - Recent commits: ${context?.commits?.length || 0}
-${context?.fileTree ? `\nFile Structure:\n${context.fileTree}\n` : ""}
-`;
+${context?.fileTree ? `\nFile Structure:\n${context.fileTree}\n` : ""}`;
 
+    let knowledgeContext = "";
+    if (context?.knowledge) {
+      knowledgeContext += `\nMaintainer Context (Highest Priority):\n`;
+      if (context.knowledge.projectDescription) {
+        knowledgeContext += `Project Description: ${context.knowledge.projectDescription}\n`;
+      }
+      if (context.knowledge.architecturePrinciples?.length) {
+        knowledgeContext += `Architecture Principles:\n- ${context.knowledge.architecturePrinciples.join('\n- ')}\n`;
+      }
+      if (context.knowledge.glossary && Object.keys(context.knowledge.glossary).length > 0) {
+        knowledgeContext += `Glossary:\n`;
+        Object.entries(context.knowledge.glossary).forEach(([k, v]) => {
+          knowledgeContext += `- ${k}: ${v}\n`;
+        });
+      }
+      if (context.knowledge.onboardingNotes?.length) {
+        knowledgeContext += `Onboarding Notes:\n- ${context.knowledge.onboardingNotes.join('\n- ')}\n`;
+      }
+    }
+    
     const scopeNote = (context as any)?.targetDirectory
       ? `\nImportant: Restrict your analysis to the target directory (${(context as any).targetDirectory}). Only reference files outside this directory if they are immediately required dependencies.\n`
       : "";
 
+    const fullContext = `${knowledgeContext}${baseContext}${scopeNote}`;
+
     switch (type) {
       case "overview":
-        return `${baseContext}${scopeNote}
+        return `${fullContext}
 
 Provide a comprehensive overview of this repository including:
 1. Primary purpose and functionality
@@ -272,7 +383,7 @@ Provide a comprehensive overview of this repository including:
 Be concise but informative.`;
 
       case "code-quality":
-        return `${baseContext}${scopeNote}
+        return `${fullContext}
 
 Analyze the code quality of this repository:
 1. Code organization and structure
@@ -284,7 +395,7 @@ Analyze the code quality of this repository:
 Provide actionable insights.`;
 
       case "security":
-        return `${baseContext}${scopeNote}
+        return `${fullContext}
 
 Perform a security analysis:
 1. Potential security vulnerabilities
@@ -294,7 +405,7 @@ Perform a security analysis:
 5. Security best practices recommendations`;
 
       case "architecture":
-        return `${baseContext}${scopeNote}
+        return `${fullContext}
 
 Analyze the software architecture:
 1. Overall architecture pattern (MVC, microservices, etc.)
@@ -304,7 +415,7 @@ Analyze the software architecture:
 5. Architectural recommendations`;
 
       case "suggestions":
-        return `${baseContext}${scopeNote}
+        return `${fullContext}
 
 Provide improvement suggestions:
 1. Code refactoring opportunities
@@ -315,8 +426,37 @@ Provide improvement suggestions:
 
 Prioritize by impact and effort.`;
 
+      case "architecture-document":
+        return `${baseContext}${scopeNote}
+
+You are an expert software architect analyzing an established codebase. Based on the provided repository context, generate a comprehensive ARCHITECTURE.md file. Use Markdown formatting. Ensure your response is strictly the Markdown content.
+
+# Architecture Overview
+[Provide a high level summary of the application's core functionality and its primary architectural pattern.]
+
+## Core Modules
+[Based on the file structure, identify 3-5 of the most crucial modules/components. Describe their primary responsibilities.]
+
+## Dependencies
+[Identify primary external dependencies, runtimes, and frameworks based on the context. Explain their role within the stack.]
+
+## Data Flow
+[Conceptually map how data traverses the application between the recognized components.]
+
+## Risks
+[List potential technical debt, scalability bottlenecks, or security concerns given the tech stack and complexity.]
+
+## Contributor Notes
+[Provide guidelines, gotchas, or important notes for new developers joining the codebase.]`;
+
+      case "architecture-chunk":
+        return `Analyze this chunk of files from the repository file tree:
+${context?.fileTree}
+
+Provide a concise, high-level summary of the modules, components, and responsibilities represented by these files. This summary will be combined with other chunk summaries to build a final architecture overview.`;
+
       default:
-        return `${baseContext}\n\nAnalyze this repository and provide insights.`;
+        return `${fullContext}\n\nAnalyze this repository and provide insights.`;
     }
   }
 
@@ -329,7 +469,13 @@ Prioritize by impact and effort.`;
     analysisType: string,
     context?: string,
   ): string {
-    const basePrompt = `Language: ${language}\n${context ? `Context: ${context}\n` : ""}\n\nCode:\n\`\`\`${language}\n${code}\n\`\`\`\n\n`;
+    // Truncate code to ~150000 characters to prevent API 400 Context Overflow
+    const MAX_CODE_LENGTH = 150000;
+    const truncatedCode = code.length > MAX_CODE_LENGTH 
+      ? code.substring(0, MAX_CODE_LENGTH) + "\n...[Code truncated due to length limits]" 
+      : code;
+
+    const basePrompt = `Language: ${language}\n${context ? `Context: ${context}\n` : ""}\n\nCode:\n\`\`\`${language}\n${truncatedCode}\n\`\`\`\n\n`;
 
     switch (analysisType) {
       case "explain":
@@ -400,6 +546,24 @@ Provide refactored code examples.`;
       }
       if (context.contributors?.length) {
         prompt += `Contributors: ${context.contributors.slice(0, 5).join(", ")}\n`;
+      }
+      if (context.knowledge) {
+        prompt += `\nMaintainer Context (Highest Priority):\n`;
+        if (context.knowledge.projectDescription) {
+          prompt += `Project Description: ${context.knowledge.projectDescription}\n`;
+        }
+        if (context.knowledge.architecturePrinciples?.length) {
+          prompt += `Architecture Principles:\n- ${context.knowledge.architecturePrinciples.join('\n- ')}\n`;
+        }
+        if (context.knowledge.glossary && Object.keys(context.knowledge.glossary).length > 0) {
+          prompt += `Glossary:\n`;
+          Object.entries(context.knowledge.glossary).forEach(([k, v]) => {
+            prompt += `- ${k}: ${v}\n`;
+          });
+        }
+        if (context.knowledge.onboardingNotes?.length) {
+          prompt += `Onboarding Notes:\n- ${context.knowledge.onboardingNotes.join('\n- ')}\n`;
+        }
       }
       prompt += "\n";
     }

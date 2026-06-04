@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { isHttpError, requireAuth , sanitizeError } from "@/lib/middleware";
+import { logger } from "@/lib/logger";
 import { getGeminiService } from "@/lib/services/geminiService";
 import { checkAiRateLimit, logAiRequest } from "@/lib/utils/ipRateLimit";
 import { getClientIp } from "@/lib/services/rateLimitService";
@@ -96,7 +97,10 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({ suggestions });
   } catch (error: any) {
-    console.error("Commit suggestion error:", sanitizeError(error));
+    logger.error(
+      { err: sanitizeError(error), route: "app/api/ai/suggest-commit/route.ts" },
+      "Commit suggestion error"
+    );
 
     if (isHttpError(error)) {
       return NextResponse.json(

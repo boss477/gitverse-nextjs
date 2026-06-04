@@ -31,7 +31,7 @@ const DEFAULT_LIMIT = 10;
 
 export function useRepositories({ limit = DEFAULT_LIMIT } = {}): UseRepositoriesReturn {
   const [repos, setRepos] = useState<Repository[]>([]);
-  const [cursor, setCursor] = useState<number | undefined>(undefined);
+  const cursorRef = useRef<number | undefined>(undefined);
   const [hasMore, setHasMore] = useState(true);
 
   const [isLoading, setIsLoading] = useState(true);
@@ -73,6 +73,9 @@ export function useRepositories({ limit = DEFAULT_LIMIT } = {}): UseRepositories
       if (isLoadMore && cursor !== undefined) {
         url.searchParams.set("cursor", cursor.toString());
       }
+    },
+    [hasMore, limit]
+  );
 
       const response = await axios.get(url.toString(), {
         headers: { Authorization: `Bearer ${token}` },
@@ -113,6 +116,7 @@ export function useRepositories({ limit = DEFAULT_LIMIT } = {}): UseRepositories
     }
   }, [cursor, hasMore, limit]);
 
+  // ✅ CLEAN useEffect (no duplicate fetch logic)
   useEffect(() => {
     if (!initRef.current) {
       initRef.current = true;
@@ -132,7 +136,7 @@ export function useRepositories({ limit = DEFAULT_LIMIT } = {}): UseRepositories
   }, [fetchRepos]);
 
   const refresh = useCallback(async () => {
-    setCursor(undefined);
+    cursorRef.current = undefined;
     setHasMore(true);
     await fetchRepos(false);
   }, [fetchRepos]);

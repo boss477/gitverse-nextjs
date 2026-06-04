@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
+import { isInternalWorkerAuthorized } from "@/lib/utils/internalAuth";
 import { GitHubAppService } from "@/lib/services/githubAppService";
 import { GitHubService } from "@/lib/services/githubService";
 import {
@@ -21,29 +22,12 @@ import { PremergePolicyEngine } from "@/lib/services/premerge-policy-engine";
 import { CheckSummaryService } from "@/lib/services/check-summary";
 import { CheckRecoveryService } from "@/lib/services/check-recovery";
 import { webhookQueue } from "@/lib/services/webhook-queue";
+import { PRImpactAnalysisService } from "@/lib/services/prImpactAnalysisService";
+import { RepositorySyncQueue } from "@/lib/services/repositorySyncQueue";
+import { classifyRetry } from "@/lib/utils/retry";
 
 export const runtime = "nodejs";
 export const maxDuration = 300; // 5 minutes max duration for Vercel
-
-// Secure this internal route
-function isInternalAuthorized(request: NextRequest): boolean {
-  // Can use a specific secret or just reuse the webhook secret
-  const authHeader = request.headers.get("authorization");
-  const secret = process.env.GITHUB_WEBHOOK_SECRET || process.env.JWT_SECRET || "";
-  
-  if (!secret) return false;
-  
-  const expectedToken = `Bearer ${crypto.createHash('sha256').update(secret).digest('hex')}`;
-  
-  try {
-    const a = Buffer.from(expectedToken);
-    const b = Buffer.from(authHeader || "");
-    if (a.length !== b.length) return false;
-    return crypto.timingSafeEqual(a, b);
-  } catch {
-    return false;
-  }
-}
 
 export async function POST(request: NextRequest) {
   const baseUrl = process.env.NEXTAUTH_URL || `http://${request.headers.get("host") || "localhost:3000"}`;
@@ -59,7 +43,7 @@ export async function POST(request: NextRequest) {
 }
 
 async function handlePost(request: NextRequest) {
-  if (!isInternalAuthorized(request)) {
+  if (!isInternalWorkerAuthorized(request.headers.get("authorization"))) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
@@ -106,7 +90,7 @@ async function handlePost(request: NextRequest) {
     const number = pullNumber || issueNumber;
     const installationId = payload.installation?.id;
 
-    if (!owner || !repo || !number || !installationId) {
+    if (!owner || !repo || (!number && webhookEvent.event !== "push") || !installationId) {
       throw new Error("Missing required fields in payload");
     }
 
@@ -165,6 +149,17 @@ async function handlePost(request: NextRequest) {
         }
       }
       return NextResponse.json({ ok: true, ignored: true, reason: "quota_exhausted" });
+    }
+
+    if (webhookEvent.event === "push") {
+      const enqueued = await RepositorySyncQueue.enqueueSyncJob(enabledRepo.id, "push");
+      
+      await prisma.webhookEvent.update({
+        where: { id: eventId },
+        data: { status: "completed" },
+      });
+
+      return NextResponse.json({ ok: true, message: enqueued ? "Sync job enqueued" : "Duplicate sync job ignored" });
     }
 
     if (webhookEvent.event === "issues") {
@@ -345,6 +340,14 @@ async function handlePost(request: NextRequest) {
           pullNumber: number,
           githubToken: installationToken,
         });
+
+        await PRImpactAnalysisService.analyzePullRequest(
+          installationToken,
+          repoFullName,
+          number,
+          prRecord.id,
+          enabledRepo.id
+        );
       } catch (impactErr) {
         console.error("Dependency impact analysis failed:", impactErr);
       }
@@ -400,18 +403,19 @@ async function handlePost(request: NextRequest) {
       );
     }
 
-    const currentRetryCount = webhookEvent?.retryCount ?? 0;
-    const maxRetries = webhookEvent?.maxRetries ?? 3;
-    const shouldRetry = currentRetryCount < maxRetries;
-    const retryDelay = Math.pow(2, currentRetryCount) * 1000;
-    
+    const retryDecision = classifyRetry({
+      currentRetryCount: webhookEvent?.retryCount ?? 0,
+      maxRetries: webhookEvent?.maxRetries ?? 3,
+      error,
+    });
+
     await prisma.webhookEvent.update({
       where: { id: eventId },
       data: {
-        status: shouldRetry ? "pending" : "failed",
+        status: retryDecision.shouldRetry ? "pending" : "failed",
         error: String(error?.message || error),
-        retryCount: currentRetryCount + 1,
-        nextRetryAt: shouldRetry ? new Date(Date.now() + retryDelay) : null,
+        retryCount: retryDecision.retryCount,
+        nextRetryAt: retryDecision.nextRetryAt,
       },
     });
 
