@@ -874,10 +874,7 @@ export class RepositoryService {
         },
         parent: true,
       },
-      orderBy: [
-        { createdAt: "desc" },
-        { id: "desc" } // Deterministic tie-breaker
-      ],
+      orderBy: { id: "desc" },
     });
 
     let nextCursor: number | undefined = undefined;
