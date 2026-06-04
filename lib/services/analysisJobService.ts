@@ -121,6 +121,54 @@ export class AnalysisJobService {
     });
   }
 
+  async createArchitectureGenerationJob(params: {
+    repositoryId: number;
+    userId: number;
+    maxAttempts?: number;
+  }): Promise<AnalysisJob> {
+    return prisma.$transaction(async (tx) => {
+      await tx.$queryRaw`SELECT pg_advisory_xact_lock(${params.repositoryId})`;
+
+      const existing = await tx.analysisJob.findFirst({
+        where: {
+          repositoryId: params.repositoryId,
+          type: "architecture_generation",
+          status: { in: ["QUEUED", "PROCESSING"] },
+        },
+      });
+      if (existing) return existing;
+
+      try {
+        return await tx.analysisJob.create({
+          data: {
+            repositoryId: params.repositoryId,
+            userId: params.userId,
+            type: "architecture_generation",
+            status: "QUEUED",
+            progressPercent: 0,
+            progressMessage: "Queued",
+            maxAttempts: params.maxAttempts ?? 3,
+          },
+        });
+      } catch (error: any) {
+        if (
+          error instanceof Prisma.PrismaClientKnownRequestError &&
+          error.code === "P2002"
+        ) {
+          const activeJob = await tx.analysisJob.findFirst({
+            where: {
+              repositoryId: params.repositoryId,
+              type: "architecture_generation",
+              status: { in: ["QUEUED", "PROCESSING"] },
+            },
+          });
+          if (activeJob) return activeJob;
+        }
+        throw error;
+      }
+    });
+  }
+
   async getJob(params: {
     jobId: string;
     userId: number;

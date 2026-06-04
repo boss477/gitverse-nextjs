@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { isHttpError, requireAuth, sanitizeError } from "@/lib/middleware";
 import { repositoryService } from "@/lib/services/repositoryService";
 import { analysisJobService } from "@/lib/services/analysisJobService";
-import { analysisWorkerTriggerService } from "@/lib/services/analysisWorkerTriggerService";
+import { triggerAnalysisWorkerWorkflow } from "@/lib/services/analysisWorkerTriggerService";
 import prisma from "@/lib/prisma";
 
 export async function POST(
@@ -30,7 +30,7 @@ export async function POST(
         });
 
         // Trigger worker asynchronously
-        analysisWorkerTriggerService.triggerAnalysisWorker().catch((err) => {
+        triggerAnalysisWorkerWorkflow().catch((err) => {
             console.error("Failed to trigger background architecture generation worker:", err);
         });
 

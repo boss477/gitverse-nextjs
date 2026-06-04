@@ -9,7 +9,8 @@ export interface AIAnalysisRequest {
   | "security"
   | "architecture"
   | "suggestions"
-  | "architecture-document";
+  | "architecture-document"
+  | "architecture-chunk";
   context?: {
     files?: Array<{ path: string; content: string }>;
     fileTree?: string;
@@ -401,6 +402,12 @@ You are an expert software architect analyzing an established codebase. Based on
 
 ## Contributor Notes
 [Provide guidelines, gotchas, or important notes for new developers joining the codebase.]`;
+
+      case "architecture-chunk":
+        return `Analyze this chunk of files from the repository file tree:
+${context?.fileTree}
+
+Provide a concise, high-level summary of the modules, components, and responsibilities represented by these files. This summary will be combined with other chunk summaries to build a final architecture overview.`;
 
       default:
         return `${fullContext}\n\nAnalyze this repository and provide insights.`;

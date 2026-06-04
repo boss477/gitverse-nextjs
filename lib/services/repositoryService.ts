@@ -8,6 +8,8 @@ import { invalidateGeminiAnalysisCacheForRepository } from "./geminiAnalysisCach
 import { FileChangeType } from "@prisma/client";
 import { repoSyncLimiter } from "../utils/concurrencyLimiter";
 import { withDbRetry } from "../utils/dbRetry";
+import { ParsedRepositoryKnowledge, gitverseConfigParser } from "../parsers/gitverseConfigParser";
+import { repositoryKnowledgeService } from "./repositoryKnowledgeService";
 import { getGeminiService } from "./geminiService";
 import { getGithubAccessToken } from "./githubAuthService";
 
@@ -173,15 +175,15 @@ export class RepositoryService {
     }
 
     const existingRepositoryName = await prisma.repository.findFirst({
-  where: {
-    name: input.name,
-    userId: input.userId,
-  },
-});
+      where: {
+        name: input.name,
+        userId: input.userId,
+      },
+    });
 
-if (existingRepositoryName) {
-  throw new Error("Repository with this name already exists");
-}
+    if (existingRepositoryName) {
+      throw new Error("Repository with this name already exists");
+    }
 
     const repository = await prisma.repository.create({
       data: {
@@ -293,22 +295,22 @@ if (existingRepositoryName) {
       checkAborted();
 
       await report({ progressPercent: 9, progressMessage: "Checking AI context configuration" });
-      
+
       let knowledgeJson: ParsedRepositoryKnowledge | undefined = undefined;
       let knowledgeMd: ParsedRepositoryKnowledge | undefined = undefined;
-      
+
       try {
         const jsonPath = path.join(tempDir, ".gitverse.json");
         const jsonContent = await fs.readFile(jsonPath, "utf8");
         knowledgeJson = gitverseConfigParser.parseJson(jsonContent);
       } catch (e) { /* Ignore missing or invalid */ }
-      
+
       try {
         const mdPath = path.join(tempDir, ".gitverse.md");
         const mdContent = await fs.readFile(mdPath, "utf8");
         knowledgeMd = gitverseConfigParser.parseMarkdown(mdContent);
       } catch (e) { /* Ignore missing or invalid */ }
-      
+
       const parsedKnowledge = gitverseConfigParser.mergeKnowledge(knowledgeJson, knowledgeMd);
 
       checkAborted();
@@ -570,7 +572,7 @@ if (existingRepositoryName) {
           },
         });
       });
-      
+
       // Save repository knowledge if found
       try {
         await repositoryKnowledgeService.upsertKnowledge(repositoryId, parsedKnowledge);
@@ -638,7 +640,7 @@ if (existingRepositoryName) {
 
     const report = async (update: RepositoryAnalysisProgress) => {
       if (opts?.onProgress) {
-        try { await opts.onProgress(update); } catch {}
+        try { await opts.onProgress(update); } catch { }
       }
     };
 
@@ -668,9 +670,9 @@ if (existingRepositoryName) {
 
     for (let i = 0; i < chunks.length; i++) {
       const chunk = chunks[i];
-      await report({ 
-        progressPercent: 10 + Math.floor((completedChunks / totalChunks) * 60), 
-        progressMessage: `Analyzing chunk ${i + 1} of ${totalChunks}...` 
+      await report({
+        progressPercent: 10 + Math.floor((completedChunks / totalChunks) * 60),
+        progressMessage: `Analyzing chunk ${i + 1} of ${totalChunks}...`
       });
 
       let aiResponse = await geminiService.analyzeRepository({
@@ -711,9 +713,19 @@ if (existingRepositoryName) {
       type: "architecture-document",
       context: {
         fileTree: `Combined Intermediate Summaries:\n\n${combinedSummaries}`,
-        commits: repository.commits,
-        languages: repository.languages,
-        contributors: repository.contributors
+        commits: repository.commits.map((c) => ({
+          message: c.message,
+          author: c.authorName,
+          date: c.committedAt.toISOString(),
+        })),
+        languages: repository.languages.map((l) => ({
+          name: l.name,
+          percentage: l.percentage,
+        })),
+        contributors: repository.contributors.map((c) => ({
+          name: c.name,
+          commits: c.commits,
+        })),
       }
     });
 

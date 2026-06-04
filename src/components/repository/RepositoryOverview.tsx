@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useState, Children, isValidElement } from "react";
 import {
   AlertTriangle,
   GitBranch,
@@ -98,7 +98,7 @@ export const RepositoryOverview = ({
         { repositoryId: Number(repository.id) },
         { headers: { Authorization: `Bearer ${token}` } }
       );
-      
+
       const readme = response.data.markdown;
       setGeneratedReadme(readme);
       setEditorText(readme);
@@ -142,12 +142,12 @@ export const RepositoryOverview = ({
         { readmeText: editorText, readmePath: readmePath || "README.md" },
         { headers: { Authorization: `Bearer ${token}` } }
       );
-      
+
       toast({
         title: "README Saved",
         description: "Successfully updated repository README in the database.",
       });
-      
+
       // Update local view of repositoryData
       if (repositoryData) {
         repositoryData.readmeText = editorText;
@@ -980,22 +980,20 @@ export const RepositoryOverview = ({
               <div className="flex bg-secondary-100 dark:bg-secondary-900 p-1 rounded-lg self-start">
                 <button
                   onClick={() => setEditorMode("preview")}
-                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-semibold transition-all ${
-                    editorMode === "preview"
-                      ? "bg-white dark:bg-secondary-800 text-foreground shadow-sm"
-                      : "text-muted-foreground hover:text-foreground"
-                  }`}
+                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-semibold transition-all ${editorMode === "preview"
+                    ? "bg-white dark:bg-secondary-800 text-foreground shadow-sm"
+                    : "text-muted-foreground hover:text-foreground"
+                    }`}
                 >
                   <Eye className="h-3.5 w-3.5" />
                   Preview
                 </button>
                 <button
                   onClick={() => setEditorMode("edit")}
-                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-semibold transition-all ${
-                    editorMode === "edit"
-                      ? "bg-white dark:bg-secondary-800 text-foreground shadow-sm"
-                      : "text-muted-foreground hover:text-foreground"
-                  }`}
+                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-semibold transition-all ${editorMode === "edit"
+                    ? "bg-white dark:bg-secondary-800 text-foreground shadow-sm"
+                    : "text-muted-foreground hover:text-foreground"
+                    }`}
                 >
                   <Edit2 className="h-3.5 w-3.5" />
                   Edit Markdown

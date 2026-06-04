@@ -106,6 +106,7 @@ export async function POST(request: NextRequest) {
 
     // Backend check to catch non-existent or private repositories
     let exists = false;
+    let isPrivate = false;
     
     // First try without token (public check)
     exists = await GitService.checkGithubRepositoryExists(normalizedUrl);
@@ -115,6 +116,9 @@ export async function POST(request: NextRequest) {
       const token = await getGithubAccessToken(user.userId);
       if (token) {
         exists = await GitService.checkGithubRepositoryExists(normalizedUrl, token);
+        if (exists) {
+          isPrivate = true;
+        }
       }
     }
 

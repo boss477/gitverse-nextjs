@@ -191,7 +191,7 @@ describe("POST /api/internal/run-analysis", () => {
   });
 
   it("sanitizes error messages in production", async () => {
-    process.env.NODE_ENV = "production";
+    (process.env as any).NODE_ENV = "production";
 
     const mockJob = {
       id: "job-789",
