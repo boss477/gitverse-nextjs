@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, useRef } from "react";
+import { useEffect, useMemo, useState, useRef, Children, isValidElement } from "react";
 import {
   ChevronRight,
   ChevronDown,
@@ -21,6 +21,7 @@ import {
   CardContent,
   Modal,
   Skeleton,
+  CopyToClipboard,
 } from "@/components/ui";
 import { useToast } from "@/hooks/use-toast";
 import ReactMarkdown from "react-markdown";
@@ -670,10 +671,13 @@ export const FileStructure = ({ repository }: FileStructureProps) => {
                     <div className="text-sm">
                       <div className="bg-black/40 px-4 py-2 border-b border-border/50 flex justify-between items-center text-xs text-muted-foreground sticky top-0 z-10 backdrop-blur-sm">
                         <span>{selectedFile.path}</span>
-                        <span className="flex items-center gap-2 text-yellow-500">
-                          <Sparkles className="h-3 w-3" />
-                          Highlight text to explain with AI
-                        </span>
+                        <div className="flex items-center gap-4">
+                          <span className="flex items-center gap-2 text-yellow-500">
+                            <Sparkles className="h-3 w-3" />
+                            Highlight text to explain with AI
+                          </span>
+                          <CopyToClipboard text={fileContent} className="h-7 w-7 text-xs bg-white/5 hover:bg-white/10" />
+                        </div>
                       </div>
                       <SyntaxHighlighter
                         language={selectedFile.language?.toLowerCase() || selectedFile.extension || "text"}
