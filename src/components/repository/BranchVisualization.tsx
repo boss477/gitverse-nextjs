@@ -1,5 +1,11 @@
-import { GitBranch, Clock, User, CheckCircle, GitCommit } from "lucide-react";
+import { GitBranch, Clock, User, CheckCircle, GitCommit, ChevronDown } from "lucide-react";
 import { Card } from "@/components/ui";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { useState } from "react";
 
 interface Branch {
@@ -156,16 +162,18 @@ export function BranchVisualization({ repository }: BranchVisualizationProps) {
           </p>
         </div>
         <div className="flex items-center gap-2">
-          <select
-            value={filter}
-            onChange={(e) => setFilter(e.target.value as FilterType)}
-            className="glass px-4 py-2 rounded-lg hover:bg-white/10 transition-all duration-300 cursor-pointer"
-          >
-            <option value="all">All branches</option>
-            <option value="active">Active</option>
-            <option value="stale">Stale</option>
-            <option value="merged">Merged</option>
-          </select>
+          <DropdownMenu>
+            <DropdownMenuTrigger className="glass px-4 py-2 rounded-lg hover:bg-white/10 transition-all duration-300 cursor-pointer flex items-center gap-2 outline-none">
+              {filter === "all" ? "All branches" : filter.charAt(0).toUpperCase() + filter.slice(1)}
+              <ChevronDown className="h-4 w-4" />
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="glass">
+              <DropdownMenuItem onClick={() => setFilter("all")} className="cursor-pointer">All branches</DropdownMenuItem>
+              <DropdownMenuItem onClick={() => setFilter("active")} className="cursor-pointer">Active</DropdownMenuItem>
+              <DropdownMenuItem onClick={() => setFilter("stale")} className="cursor-pointer">Stale</DropdownMenuItem>
+              <DropdownMenuItem onClick={() => setFilter("merged")} className="cursor-pointer">Merged</DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
         </div>
       </div>
 
