@@ -289,14 +289,14 @@ export const RepositoryOverview = ({
     setSelectedIssue(null);
   };
 
-  const MODULE_GUIDANCE: Record<
+  const MODULE_GUIDANCE = useMemo<Record<
     string,
     {
       description: string;
       recommendation: string;
       difficulty: "beginner" | "intermediate" | "advanced";
     }
-  > = {
+  >>(() => ({
     components: {
       description:
         "Contains reusable UI building blocks used throughout the application.",
@@ -328,7 +328,7 @@ export const RepositoryOverview = ({
       recommendation: "Requires understanding of security flows.",
       difficulty: "advanced",
     },
-  };
+  }), []);
 
   const ARCHITECTURE_GUIDANCE: Record<string, string> = {
     services:
@@ -355,7 +355,7 @@ export const RepositoryOverview = ({
     return Array.from(segments).filter((segment) =>
       Object.prototype.hasOwnProperty.call(MODULE_GUIDANCE, segment),
     );
-  }, [repositoryData?.files]);
+  }, [repositoryData?.files, MODULE_GUIDANCE]);
 
   const hotspotGuidance = useMemo(() => {
     const filePaths = (repositoryData?.files || []).map((file: any) =>

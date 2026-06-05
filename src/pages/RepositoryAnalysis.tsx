@@ -32,6 +32,7 @@ import {
   Loader2,
   XCircle,
   FileX2,
+  MessageSquare,
 } from "lucide-react";
 
 import { useToast } from "@/hooks/use-toast";

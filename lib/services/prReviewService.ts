@@ -1,6 +1,7 @@
 import { GitHubService } from "@/lib/services/githubService";
 import { GeminiService } from "@/lib/services/geminiService";
 import { getActivePoliciesForRepository, buildPolicyPromptSection } from "@/lib/services/reviewPolicyService";
+import yaml from "yaml";
 import { sanitizeTextContent } from "@/lib/utils/promptSanitization";
 
 export type ReviewSeverity = "critical" | "high" | "medium" | "low";
@@ -245,11 +246,25 @@ export async function reviewPullRequest(params: {
     ? `\nCross-Repository Impact Risk: ${impactReport.risk}\nReason: ${impactReport.reason}\nPotentially Affected Downstream Repositories: ${impactReport.potentiallyAffectedRepositories.join(", ")}\n` 
     : "";
 
-  const processChunk = async (chunkFiles: typeof prFiles, chunkIndex: number, totalChunks: number): Promise<PRReviewResponse | null> => {
-    const { diff, stats } = buildDiffForPrompt(chunkFiles);
-
   // Fetch active organizational policies for this repository
   let policySection = "";
+  let yamlPolicies: string[] = [];
+
+  // Attempt to fetch from gitverse.yml in the repository
+  try {
+    const yamlContent = await github.getFileContent(params.owner, params.repo, "gitverse.yml", pr.head?.sha || pr.base?.sha);
+    if (yamlContent) {
+      const parsedYaml = yaml.parse(yamlContent);
+      if (parsedYaml?.reviewGuidelines && Array.isArray(parsedYaml.reviewGuidelines)) {
+        yamlPolicies = parsedYaml.reviewGuidelines;
+      } else if (parsedYaml?.rules && Array.isArray(parsedYaml.rules)) {
+        yamlPolicies = parsedYaml.rules.map((r: any) => typeof r === 'string' ? r : r.rule).filter(Boolean);
+      }
+    }
+  } catch (e) {
+    // ignore if file doesn't exist
+  }
+
   if (params.repositoryId) {
     try {
       const policies = await getActivePoliciesForRepository(params.repositoryId);
@@ -259,6 +274,20 @@ export async function reviewPullRequest(params: {
     }
   }
 
+  if (yamlPolicies.length > 0) {
+    if (!policySection) {
+      policySection = "\nORGANIZATIONAL POLICIES (MUST ENFORCE):\nThe following custom rules are defined by the repository administrators. You MUST check for compliance with each rule. If a PR violates any rule, create an issue with severity matching the rule's severity level and category set to \"policy-violation\".\n\n";
+    }
+    for (const rule of yamlPolicies) {
+      policySection += `- [HIGH] ${rule}\n`;
+    }
+    if (!policySection.includes("IMPORTANT: Policy violations should be flagged")) {
+      policySection += "\nIMPORTANT: Policy violations should be flagged with the exact severity specified. Use the \"suggestion\" field to explain how to fix the violation according to the organizational standard.\n";
+    }
+  }
+
+  const processChunk = async (chunkFiles: typeof prFiles, chunkIndex: number, totalChunks: number): Promise<PRReviewResponse | null> => {
+    const { diff, stats } = buildDiffForPrompt(chunkFiles);
 
     if (!diff) {
       if (totalChunks === 1) {
