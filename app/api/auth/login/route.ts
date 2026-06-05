@@ -14,6 +14,11 @@ import {
 const MAX_ATTEMPTS = 5;
 const WINDOW_MS = 60 * 1000;
 
+// Pre-computed dummy hash for timing-safe comparison.
+// Generated via bcrypt.hashSync("dummy", 10) - must be exactly 60 characters.
+const DUMMY_BCRYPT_HASH =
+  "$2a$10$N9qo8uLOickgx2ZMRZoMy.MqrqZR2r0Y2ILi7z1tPzC6mXi7TE7.K";
+
 export async function POST(request: NextRequest) {
   try {
     const ip = getClientIp(request);
@@ -61,9 +66,7 @@ export async function POST(request: NextRequest) {
     });
 
     // To prevent timing attacks, always run bcrypt.compare with a dummy hash if user/hash is missing.
-    const dummyHash =
-      "$2a$10$Nx2V/S5.tYJ.2j8sH.x.uO9M1Jt.1y2u3v4w5x6y7z8a9b1c2d3e4";
-    const passwordHashToCompare = user?.passwordHash || dummyHash;
+    const passwordHashToCompare = user?.passwordHash || DUMMY_BCRYPT_HASH;
     const isValidPassword = await bcrypt.compare(
       password,
       passwordHashToCompare,
