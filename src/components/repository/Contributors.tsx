@@ -11,6 +11,7 @@ import {
   Clock,
   Zap,
 } from "lucide-react";
+import Image from "next/image";
 import { Card } from "@/components/ui";
 import { useState, useRef, useEffect } from "react";
 import Image from "next/image";
@@ -201,7 +202,7 @@ export function Contributors({ repository }: ContributorsProps) {
                     alt={contributor.name}
                     width={48}
                     height={48}
-                    className="w-12 h-12 rounded-full ring-2 ring-primary/20"
+                    className="w-12 h-12 rounded-full ring-2 ring-primary/20 object-cover"
                   />
                   {rankBadge && (
                     <div className="absolute -top-1 -right-1 text-lg">

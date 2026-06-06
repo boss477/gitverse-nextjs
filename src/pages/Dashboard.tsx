@@ -32,9 +32,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { buildApiUrl } from "@/services/apiConfig";
 import axios from "axios";
 import { toast } from "@/hooks/use-toast";
-import { useRecentRepos } from "@/hooks/useRecentRepos";
-import { isValidGithubUrl } from "@/lib/utils/validators";
-import { RecentReposList } from "@/components/RecentReposList";
+
 interface Repository {
   id: string;
   name: string;
@@ -363,19 +361,19 @@ export default function Dashboard() {
           {/* Cards skeleton */}
           <div className="grid grid-cols-3 gap-6">
             <div className="col-span-2 space-y-3">
-              <Skeleton className="w-[40%] h-5" />
+              <Skeleton style={{ width: "40%", height: "20px" }} />
               {Array.from({ length: 3 }).map((_, i) => (
                 <div key={i} className="p-4 border rounded-lg space-y-2">
-                  <Skeleton className="w-[30%] h-[18px]" />
-                  <Skeleton className="w-[70%] h-3.5" />
+                  <Skeleton style={{ width: "30%", height: "18px" }} />
+                  <Skeleton style={{ width: "70%", height: "14px" }} />
                 </div>
               ))}
             </div>
 
             <div className="space-y-3">
-              <Skeleton className="w-[50%] h-5" />
+              <Skeleton style={{ width: "50%", height: "20px" }} />
               {Array.from({ length: 4 }).map((_, i) => (
-                <Skeleton key={i} className="w-full h-10" />
+                <Skeleton key={i} style={{ width: "100%", height: "40px" }} />
               ))}
             </div>
           </div>
