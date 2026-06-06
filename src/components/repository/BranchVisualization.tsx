@@ -73,9 +73,16 @@ const toSafeIso = (value?: string | Date) => {
   return Number.isNaN(d.getTime()) ? new Date().toISOString() : d.toISOString();
 };
 
+const getBranchAgeInDays = (timestamp: string | Date) => {
+  return Math.floor(
+    (new Date().getTime() - new Date(timestamp).getTime()) /
+      (1000 * 60 * 60 * 24)
+  );
+};
+
 export function BranchVisualization({ repository }: BranchVisualizationProps) {
   const [selectedBranch, setSelectedBranch] = useState<Branch | null>(null);
-  const [filter, setFilter] = useState<FilterType>("active");
+  const [filter, setFilter] = useState<FilterType>("all");
 
   // Use real branches from repository or empty array
   const branches: Branch[] =
@@ -122,20 +129,10 @@ export function BranchVisualization({ repository }: BranchVisualizationProps) {
   const filteredBranches = branches.filter((branch) => {
     switch (filter) {
       case "active": {
-        const diffInDays = Math.floor(
-          (new Date().getTime() -
-            new Date(branch.lastCommit.timestamp).getTime()) /
-            (1000 * 60 * 60 * 24)
-        );
-        return diffInDays <= 30;
+        return getBranchAgeInDays(branch.lastCommit.timestamp) <= 30;
       }
       case "stale": {
-        const diffInDays = Math.floor(
-          (new Date().getTime() -
-            new Date(branch.lastCommit.timestamp).getTime()) /
-            (1000 * 60 * 60 * 24)
-        );
-        return diffInDays > 30;
+        return getBranchAgeInDays(branch.lastCommit.timestamp) > 30;
       }
       case "merged":
         return branch.ahead === 0 && branch.behind > 0;
@@ -230,14 +227,9 @@ export function BranchVisualization({ repository }: BranchVisualizationProps) {
             <div>
               <p className="text-2xl font-bold">
                 {
-                  branches.filter((b) => {
-                    const days = Math.floor(
-                      (new Date().getTime() -
-                        new Date(b.lastCommit.timestamp).getTime()) /
-                        (1000 * 60 * 60 * 24)
-                    );
-                    return days > 30;
-                  }).length
+                  branches.filter(
+                    (b) => getBranchAgeInDays(b.lastCommit.timestamp) > 30
+                  ).length
                 }
               </p>
               <p className="text-xs text-muted-foreground">Stale Branches</p>
