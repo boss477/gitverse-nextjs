@@ -5,17 +5,21 @@ on:
   push:
     branches: [main]
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   test:
     name: test
     runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
 
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
           node-version: 22.x
-        with:
-          node-version: ${{ matrix.node }}
           cache: npm
 
       - name: Install
@@ -23,6 +27,12 @@ jobs:
 
       - name: Generate Prisma Client
         run: npx prisma generate
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Type check
+        run: npm run typecheck
 
       - name: Verify no committed build artifacts in dist-worker
         run: |
@@ -46,4 +56,3 @@ jobs:
           GEMINI_API_KEY: "dummy-key"
           INTERNAL_WORKER_SECRET: "dummy-secret"
           TOKEN_ENCRYPTION_KEY: "000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f"
-
