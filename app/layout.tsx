@@ -5,6 +5,7 @@ import { ThemeProvider } from "@/context/ThemeContext";
 import { AuthProvider } from "@/contexts/AuthContext";
 import { NextAuthProvider } from "@/components/auth/NextAuthProvider";
 import { Toaster } from "@/components/ui/toaster";
+import { SessionExpiryHandler } from "@/components/auth/SessionExpiryHandler";
 import "./globals.css";
 export const metadata: Metadata = {
   title: "GitVerse - AI-Powered Repository Analysis",
@@ -18,6 +19,7 @@ export default function RootLayout({ children }: { children: ReactNode }) {
         <ThemeProvider>
           <NextAuthProvider>
             <AuthProvider>
+              <SessionExpiryHandler />
               {children}
               <Toaster />
             </AuthProvider>

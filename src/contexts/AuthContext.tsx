@@ -88,8 +88,14 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
                 data.user.avatarUrl ||
                 `https://api.dicebear.com/7.x/avataaars/svg?seed=${data.user.email}`,
             });
+          } else if (response.status === 401) {
+            localStorage.removeItem("gitverse_token");
+            if (typeof window !== "undefined") {
+              window.dispatchEvent(new CustomEvent("session-expired", {
+                detail: { message: "Your session has expired. Please log in again." },
+              }));
+            }
           } else {
-            // Token invalid, clear storage
             localStorage.removeItem("gitverse_token");
           }
         } catch (error) {
