@@ -31,8 +31,38 @@ export const runtime = "nodejs";
 export const maxDuration = 300; // 5 minutes max duration for Vercel
 
 export async function POST(request: NextRequest) {
-  const workerId = request.headers.get("x-worker-id") || "unknown";
-  const rl = await checkRateLimit(workerId, RATE_LIMITS.WORKER_WEBHOOK);
+  // ============================================================================
+  // INTERNAL WORKER AUTHORIZATION
+  // ============================================================================
+  // We explicitly verify the worker's identity before allowing them to trigger
+  // webhooks or consume any rate limit quota. This ensures that unauthorized
+  // requests cannot manipulate internal webhook states or exhaust our limits.
+  const authHeader = request.headers.get("authorization");
+  
+  if (!authHeader) {
+    console.warn("[Worker Webhook] Missing authorization header in incoming request");
+  } else {
+    console.info("[Worker Webhook] Authorization header present, validating...");
+  }
+
+  const isAuthorized = isInternalWorkerAuthorized(authHeader);
+  
+  if (!isAuthorized) {
+    console.error("[Worker Webhook] Unauthorized access attempt detected. Invalid or missing token.");
+    return NextResponse.json(
+      { 
+        error: "Unauthorized",
+        message: "You do not have permission to access this internal webhook endpoint.",
+        code: "AUTH_FAILED"
+      }, 
+      { status: 401 }
+    );
+  }
+  
+  console.info("[Worker Webhook] Worker successfully authenticated.");
+  // ============================================================================
+
+  const rl = await checkRateLimit("webhook-worker", RATE_LIMITS.WORKER_WEBHOOK);
   if (!rl.allowed) return rateLimitResponse(rl, "Worker rate limit exceeded");
 
   const baseUrl = process.env.NEXTAUTH_URL || `http://${request.headers.get("host") || "localhost:3000"}`;
@@ -48,10 +78,6 @@ export async function POST(request: NextRequest) {
 }
 
 async function handlePost(request: NextRequest) {
-  if (!isInternalWorkerAuthorized(request.headers.get("authorization"))) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
-
   const { eventId } = await request.json().catch(() => ({}));
 
   if (!eventId) {
