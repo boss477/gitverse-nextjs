@@ -25,6 +25,7 @@ import {
   generateBackupCodes,
   verifyAndConsumeBackupCode,
 } from "@/lib/mfa";
+import { decryptToken } from "@/lib/utils/envelopeEncryption";
 import { logAuditEvent } from "@/lib/auditLogger";
 import {
   checkRateLimit,
@@ -78,7 +79,7 @@ export async function POST(request: NextRequest) {
     // Fetch MFA config
     const mfaConfig = await prisma.mfaConfig.findUnique({
       where: { userId: user.userId },
-      select: { totpSecret: true, isEnabled: true },
+      select: { totpSecret: true, isEnabled: true, tokenEncrypted: true },
     });
 
     if (!mfaConfig?.totpSecret) {
@@ -87,6 +88,10 @@ export async function POST(request: NextRequest) {
         { status: 409 },
       );
     }
+
+    const secret = mfaConfig.tokenEncrypted
+      ? await decryptToken(mfaConfig.totpSecret)
+      : mfaConfig.totpSecret;
 
     // ── Backup Code Path ───────────────────────────────────────────────────
     if (backupCode) {
@@ -135,7 +140,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const isValid = verifyTOTP(mfaConfig.totpSecret, token!);
+    const isValid = verifyTOTP(secret, token!);
 
     if (!isValid) {
       await logAuditEvent({

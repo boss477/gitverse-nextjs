@@ -19,7 +19,10 @@ import {
   buildOtpAuthUri,
   upsertMfaSecret,
   getMfaStatus,
+  verifyTOTP,
+  disableMfa,
 } from "@/lib/mfa";
+import { decryptToken } from "@/lib/utils/envelopeEncryption";
 import { logAuditEvent } from "@/lib/auditLogger";
 import {
   checkRateLimit,
@@ -156,7 +159,7 @@ export async function DELETE(request: NextRequest) {
 
     const mfaConfig = await prisma.mfaConfig.findUnique({
       where: { userId: user.userId },
-      select: { totpSecret: true, isEnabled: true },
+      select: { totpSecret: true, isEnabled: true, tokenEncrypted: true },
     });
 
     if (!mfaConfig?.isEnabled) {
@@ -166,10 +169,11 @@ export async function DELETE(request: NextRequest) {
       );
     }
 
-    // Import verifyTOTP inline to avoid circular deps
-    const { verifyTOTP, disableMfa } = await import("@/lib/mfa");
+    const secret = mfaConfig.tokenEncrypted
+      ? await decryptToken(mfaConfig.totpSecret)
+      : mfaConfig.totpSecret;
 
-    if (!verifyTOTP(mfaConfig.totpSecret, token)) {
+    if (!verifyTOTP(secret, token)) {
       await logAuditEvent({
         userId: user.userId,
         action: "MFA_FAILED",

@@ -13,6 +13,7 @@
 
 import { createHmac, randomBytes } from "crypto";
 import prisma from "@/lib/prisma";
+import { encryptToken, decryptToken } from "@/lib/utils/envelopeEncryption";
 
 // ─── Base32 Encoding ────────────────────────────────────────────────────────
 
@@ -263,11 +264,22 @@ export async function upsertMfaSecret(
   userId: number,
   totpSecret: string,
 ): Promise<void> {
+  const encrypted = await encryptToken(totpSecret);
   await prisma.mfaConfig.upsert({
     where: { userId },
-    create: { userId, totpSecret, isEnabled: false },
-    update: { totpSecret, isEnabled: false },
+    create: { userId, totpSecret: encrypted, tokenEncrypted: true, isEnabled: false },
+    update: { totpSecret: encrypted, tokenEncrypted: true, isEnabled: false },
   });
+}
+
+export async function getDecryptedTotpSecret(userId: number): Promise<string | null> {
+  const config = await prisma.mfaConfig.findUnique({
+    where: { userId },
+    select: { totpSecret: true, tokenEncrypted: true },
+  });
+  if (!config?.totpSecret) return null;
+  if (config.tokenEncrypted) return await decryptToken(config.totpSecret);
+  return config.totpSecret;
 }
 
 /**
