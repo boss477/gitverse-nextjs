@@ -52,6 +52,21 @@ interface DetailedRepo extends RepoItem {
   files: Array<{ path: string; size: number }>;
 }
 
+const getRepoSlug = (url: string) => {
+  try {
+    const cleanUrl = url.trim().replace(/\/$/, "");
+    const match = cleanUrl.match(/github\.com\/([^/]+)\/([^/]+)/);
+    if (match) {
+      const owner = match[1].toLowerCase();
+      const name = match[2].replace(/\.git$/, "").toLowerCase();
+      return `${owner}/${name}`;
+    }
+  } catch (e) {
+    console.error("Failed to parse URL:", e);
+  }
+  return "";
+};
+
 export default function CompareRepositories() {
   const { toast } = useToast();
   const { isAuthenticated, isLoading: isAuthLoading } = useAuth();
@@ -125,7 +140,8 @@ export default function CompareRepositories() {
       const selectedRepos = repoList.filter((r) => idsToCompare.includes(r.id));
       const query = new URLSearchParams();
       selectedRepos.forEach((repo, idx) => {
-        query.set(`repo${idx + 1}`, repo.url);
+        const slug = getRepoSlug(repo.url);
+        query.set(`repo${idx + 1}`, slug || repo.url);
       });
       window.history.replaceState({}, "", `/compare?${query.toString()}`);
 
@@ -183,12 +199,8 @@ export default function CompareRepositories() {
         if (!paramValue) return null;
         const normalizedParam = paramValue.toLowerCase().trim();
         return repoList.find((r) => {
-          const normalizedUrl = r.url.toLowerCase().trim();
-          const normalizedName = r.name.toLowerCase().trim();
-          return (
-            normalizedUrl.includes(normalizedParam) ||
-            normalizedName.includes(normalizedParam)
-          );
+          const slug = getRepoSlug(r.url);
+          return slug === normalizedParam;
         });
       };
 
@@ -401,7 +413,16 @@ export default function CompareRepositories() {
                       <div
                         key={repo.id}
                         onClick={() => handleToggleSelect(repo.id)}
-                        className={`group cursor-pointer glass border rounded-xl p-5 transition-all duration-300 relative ${
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter" || e.key === " ") {
+                            e.preventDefault();
+                            handleToggleSelect(repo.id);
+                          }
+                        }}
+                        tabIndex={0}
+                        role="button"
+                        aria-pressed={isSelected}
+                        className={`group cursor-pointer glass border rounded-xl p-5 transition-all duration-300 relative focus:outline-none focus:ring-2 focus:ring-primary ${
                           isSelected
                             ? "border-primary bg-primary/5 ring-1 ring-primary"
                             : "border-border/50 hover:border-border hover:bg-white/5"

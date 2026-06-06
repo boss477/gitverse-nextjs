@@ -33,9 +33,9 @@ export function ComparisonHeader({ repo }: ComparisonHeaderProps) {
   const [liveData, setLiveData] = useState<{
     stars: number;
     forks: number;
-    openIssues: number;
-    license: string;
-    size: number;
+    openIssues: number | null;
+    license: string | null;
+    size: number | null;
     lastCommitDate: string;
   } | null>(null);
   const [loading, setLoading] = useState(false);
@@ -70,9 +70,9 @@ export function ComparisonHeader({ repo }: ComparisonHeaderProps) {
           setLiveData({
             stars: data.stargazers_count,
             forks: data.forks_count,
-            openIssues: data.open_issues_count,
-            license: data.license?.spdx_id || data.license?.name || "MIT",
-            size: data.size * 1024, // GitHub API size is in KB, convert to bytes
+            openIssues: data.open_issues_count ?? null,
+            license: data.license?.spdx_id || data.license?.name || null,
+            size: typeof data.size === "number" ? data.size * 1024 : null, // GitHub API size is in KB, convert to bytes
             lastCommitDate: data.pushed_at,
           });
         }
@@ -109,9 +109,9 @@ export function ComparisonHeader({ repo }: ComparisonHeaderProps) {
   // Local fallback values
   const starsCount = liveData?.stars ?? repo.stars ?? 0;
   const forksCount = liveData?.forks ?? repo.forks ?? 0;
-  const openIssuesCount = liveData?.openIssues ?? 0;
-  const licenseType = liveData?.license ?? "MIT";
-  const repoSize = liveData?.size ?? repo.size ?? 0;
+  const openIssuesCount = liveData ? liveData.openIssues : null;
+  const licenseType = liveData ? (liveData.license ?? "N/A") : "N/A";
+  const repoSize = liveData ? (liveData.size ?? repo.size ?? null) : (repo.size ?? null);
   
   // Last commit date fallback
   const lastCommitDate = liveData?.lastCommitDate ?? 
@@ -179,7 +179,7 @@ export function ComparisonHeader({ repo }: ComparisonHeaderProps) {
             <div>
               <span className="text-[10px] text-muted-foreground uppercase tracking-wider block">Open Issues</span>
               <span className="text-base font-bold text-foreground">
-                {loading ? "..." : openIssuesCount.toLocaleString()}
+                {loading ? "..." : openIssuesCount === null ? "N/A" : openIssuesCount.toLocaleString()}
               </span>
             </div>
           </div>
@@ -190,7 +190,7 @@ export function ComparisonHeader({ repo }: ComparisonHeaderProps) {
             <div>
               <span className="text-[10px] text-muted-foreground uppercase tracking-wider block">Size</span>
               <span className="text-base font-bold text-foreground">
-                {formatSize(repoSize)}
+                {repoSize === null ? "N/A" : formatSize(repoSize)}
               </span>
             </div>
           </div>

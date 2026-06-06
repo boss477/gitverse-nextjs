@@ -192,11 +192,7 @@ export function ContributorOverlap({ repos }: ContributorOverlapProps) {
                         </div>
                         <div className="min-w-0">
                           <p className="font-semibold text-foreground truncate max-w-[200px]">{c.name}</p>
-                          {c.email && (
-                            <p className="text-[10px] text-muted-foreground truncate max-w-[200px]">
-                              {c.email}
-                            </p>
-                          )}
+
                         </div>
                       </td>
                       {repos.map((repo) => {

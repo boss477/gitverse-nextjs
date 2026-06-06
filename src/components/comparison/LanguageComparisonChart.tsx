@@ -41,7 +41,7 @@ export function LanguageComparisonChart({ repos }: LanguageComparisonChartProps)
 
       repos.forEach((repo) => {
         const langInfo = repo.languages?.find((l) => l.name === langName);
-        dataPoint[repo.name] = langInfo ? parseFloat(langInfo.percentage.toFixed(1)) : 0;
+        dataPoint[repo.name] = langInfo ? Math.round(langInfo.percentage * 10) / 10 : 0;
       });
 
       return dataPoint;
