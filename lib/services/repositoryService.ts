@@ -199,7 +199,6 @@ export class RepositoryService {
     });
 
     if (existingRepository) {
-
       return existingRepository;
     }
 
@@ -305,7 +304,10 @@ export class RepositoryService {
         accessToken: token,
         onProgress: (pct, msg) => {
           const analysisPct = 5 + Math.round((pct / 100) * 3);
-          report({ progressPercent: Math.min(8, analysisPct), progressMessage: msg });
+          report({
+            progressPercent: Math.min(8, analysisPct),
+            progressMessage: msg,
+          });
         },
       });
 
@@ -669,7 +671,6 @@ export class RepositoryService {
       ttlCache.deleteByPrefix(`repo-stats:${repositoryId}:`);
 
       await report({ progressPercent: 100, progressMessage: "Completed" });
-
     } catch (error: any) {
       console.error(`Error analyzing repository ${repositoryId}:`, error);
       await prisma.repository.update({
@@ -687,7 +688,9 @@ export class RepositoryService {
       if (gitService) {
         await gitService.cleanup();
       } else {
-        await fs.rm(tempDir, { recursive: true, force: true }).catch(() => null);
+        await fs
+          .rm(tempDir, { recursive: true, force: true })
+          .catch(() => null);
       }
     }
   }
