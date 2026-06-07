@@ -249,6 +249,7 @@ model Repository {
   knowledge                    RepositoryKnowledge?
   syncJobs                     RepositorySyncJob[]
   lastSynchronizedAt           DateTime?                     @map("last_synchronized_at")
+  configWarning                String?                       @map("config_warning") @db.Text
   repositoryArchitectureChunks RepositoryArchitectureChunk[]
 
   @@index([url])
