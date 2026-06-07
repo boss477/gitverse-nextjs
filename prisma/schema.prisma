@@ -61,6 +61,7 @@ model User {
   annotationActivities    AnnotationActivity[]
   mfaConfig               MfaConfig?
   auditLogs               AuditLog[]
+  apiKeys                 ApiKey[]
 
   @@map("users")
 }
@@ -820,6 +821,23 @@ model RepositoryKnowledge {
 
 /// MFA configuration for TOTP-based Multi-Factor Authentication.
 /// Stores the encrypted TOTP secret and hashed backup codes per user.
+model ApiKey {
+  id         Int      @id @default(autoincrement())
+  userId     Int      @map("user_id")
+  name       String
+  hashedKey  String   @unique @map("hashed_key")
+  scopes     Json     @default("[]")
+  expiresAt  DateTime @map("expires_at")
+  lastUsedAt DateTime? @map("last_used_at")
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([hashedKey])
+  @@map("api_keys")
+}
+
 model MfaConfig {
   id            Int      @id @default(autoincrement())
   userId        Int      @unique @map("user_id")
