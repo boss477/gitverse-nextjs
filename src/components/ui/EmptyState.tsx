@@ -2,7 +2,7 @@ import React from 'react';
 import { Button } from './Button';
 
 interface EmptyStateProps {
-  icon?: React.ReactNode;
+  icon?: React.ComponentType<{ className?: string }> | React.ReactNode;
   title: string;
   description: string;
   actionLabel?: string;
@@ -20,6 +20,18 @@ export function EmptyState({
   suggestions,
   ariaLabel,
 }: EmptyStateProps) {
+  const renderIcon = () => {
+    if (!icon) return null;
+    if (
+      typeof icon === 'function' || 
+      (typeof icon === 'object' && !React.isValidElement(icon))
+    ) {
+      const IconComponent = icon as any;
+      return <IconComponent className="h-8 w-8" />;
+    }
+    return icon;
+  };
+
   return (
     <section
       role="region"
@@ -28,7 +40,7 @@ export function EmptyState({
     >
       {icon && (
         <div className="flex h-16 w-16 items-center justify-center rounded-full bg-primary/10 ring-8 ring-primary/5 mb-6 text-primary transition-transform duration-300 hover:scale-105">
-          {icon}
+          {renderIcon()}
         </div>
       )}
       <h2 className="text-xl sm:text-2xl font-heading font-bold text-foreground mb-3 tracking-tight">

@@ -26,6 +26,11 @@ interface CommitActivityOverlayProps {
 }
 
 export function CommitActivityOverlay({ repos }: CommitActivityOverlayProps) {
+  const repoSeries = repos.map((repo) => ({
+    key: `repo_${repo.id}`,
+    label: repo.name,
+  }));
+
   // 1. Generate weekly buckets for the last 3 months (12 weeks)
   const getWeekBuckets = () => {
     const buckets = [];
@@ -62,14 +67,14 @@ export function CommitActivityOverlay({ repos }: CommitActivityOverlayProps) {
       week: bucket.label,
     };
 
-    repos.forEach((repo) => {
+    repos.forEach((repo, idx) => {
       const count =
         repo.commits?.filter((commit) => {
           const commitDate = new Date(commit.committedAt);
           return commitDate >= bucket.start && commitDate <= bucket.end;
         }).length || 0;
 
-      dataPoint[repo.name] = count;
+      dataPoint[repoSeries[idx].key] = count;
     });
 
     return dataPoint;
@@ -143,7 +148,8 @@ export function CommitActivityOverlay({ repos }: CommitActivityOverlayProps) {
               <Line
                 key={repo.id}
                 type="monotone"
-                dataKey={repo.name}
+                dataKey={repoSeries[idx].key}
+                name={repoSeries[idx].label}
                 stroke={colors[idx % colors.length]}
                 strokeWidth={2}
                 dot={{ r: 3, strokeWidth: 1 }}

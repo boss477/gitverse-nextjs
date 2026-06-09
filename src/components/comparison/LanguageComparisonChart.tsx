@@ -26,6 +26,12 @@ interface LanguageComparisonChartProps {
 }
 
 export function LanguageComparisonChart({ repos }: LanguageComparisonChartProps) {
+  // Use sanitized repository name as series key to avoid collisions when names repeat
+  const repoSeries = repos.map((repo) => ({
+    key: `repo_${repo.name.replace(/\s+/g, "_").toLowerCase()}`,
+    label: repo.name,
+  }));
+
   // 1. Get all unique language names across all repositories
   const allLanguages = Array.from(
     new Set(repos.flatMap((repo) => repo.languages?.map((l) => l.name) || []))
@@ -39,9 +45,9 @@ export function LanguageComparisonChart({ repos }: LanguageComparisonChartProps)
         language: langName,
       };
 
-      repos.forEach((repo) => {
+      repos.forEach((repo, idx) => {
         const langInfo = repo.languages?.find((l) => l.name === langName);
-        dataPoint[repo.name] = langInfo ? Math.round(langInfo.percentage * 10) / 10 : 0;
+        dataPoint[repoSeries[idx].key] = langInfo ? Math.round(langInfo.percentage * 10) / 10 : 0;
       });
 
       return dataPoint;
@@ -49,10 +55,10 @@ export function LanguageComparisonChart({ repos }: LanguageComparisonChartProps)
     // Sort by maximum percentage in any repo to put prominent languages first
     .sort((a, b) => {
       const maxA = Math.max(
-        ...repos.map((repo) => (a[repo.name] as number) || 0)
+        ...repoSeries.map((series) => (a[series.key] as number) || 0)
       );
       const maxB = Math.max(
-        ...repos.map((repo) => (b[repo.name] as number) || 0)
+        ...repoSeries.map((series) => (b[series.key] as number) || 0)
       );
       return maxB - maxA;
     })
@@ -130,7 +136,8 @@ export function LanguageComparisonChart({ repos }: LanguageComparisonChartProps)
               {repos.map((repo, idx) => (
                 <Bar
                   key={repo.id}
-                  dataKey={repo.name}
+                  dataKey={repoSeries[idx].key}
+                  name={repoSeries[idx].label}
                   fill={colors[idx % colors.length]}
                   radius={[4, 4, 0, 0]}
                   maxBarSize={40}

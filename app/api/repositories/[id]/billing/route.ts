@@ -3,6 +3,7 @@ import { sanitizeError, isHttpError } from "@/lib/middleware";
 import { enforceRepositoryPermission } from "@/middleware/repository-permissions";
 import { SettingsAuditService } from "@/services/security/settings-audit";
 import prisma from "@/lib/prisma";
+import { QuotaService } from "@/lib/services/quotaService";
 
 const securityHeaders = {
   "Cache-Control": "no-store, no-cache, must-revalidate, proxy-revalidate",
@@ -33,7 +34,7 @@ export async function GET(
       return permission.errorResponse;
     }
 
-    // Look up the organization assignment and any associated AI quota
+    // Look up the organization assignment
     const assignment = await prisma.repositoryPolicyAssignment.findUnique({
       where: { repositoryId },
       select: { organizationId: true },
@@ -41,22 +42,54 @@ export async function GET(
 
     let quotaInfo = null;
     if (assignment) {
-      // Find installation linked to the org for quota data
-      const installation = await prisma.gitHubInstallation.findFirst({
-        where: { organizationId: assignment.organizationId },
-        select: { id: true },
+      // Find repository's installation ID via GitHubRepo matching
+      const repository = await prisma.repository.findUnique({
+        where: { id: repositoryId },
+        select: { url: true },
       });
 
-      if (installation) {
-        quotaInfo = await prisma.aiQuota.findUnique({
-          where: { installationId: installation.id },
+      let installationId: bigint | null = null;
+      if (repository?.url) {
+        const match = repository.url.match(/github\.com\/([^/]+)\/([^/]+)/);
+        if (match) {
+          const owner = match[1];
+          const name = match[2].replace(/\.git$/, "");
+          const repoFullName = `${owner}/${name}`;
+
+          const githubRepo = await prisma.gitHubRepo.findFirst({
+            where: {
+              repoFullName: {
+                equals: repoFullName,
+                mode: "insensitive",
+              },
+            },
+            select: { installationId: true },
+          });
+          if (githubRepo && githubRepo.installationId) {
+            installationId = githubRepo.installationId;
+          }
+        }
+      }
+
+      if (installationId) {
+        const quota = await prisma.aiQuota.findUnique({
+          where: { installationId },
           select: {
-            tokensUsed: true,
-            tokenLimit: true,
-            windowStart: true,
+            tokensConsumed: true,
+            requestsUsed: true,
+            quotaWindowStart: true,
             warningPosted: true,
           },
         });
+
+        if (quota) {
+          quotaInfo = {
+            tokensUsed: quota.tokensConsumed,
+            tokenLimit: QuotaService.getQuotaMax(),
+            windowStart: quota.quotaWindowStart,
+            warningPosted: quota.warningPosted,
+          };
+        }
       }
     }
 
@@ -133,34 +166,61 @@ export async function PUT(
       );
     }
 
-    const installation = await prisma.gitHubInstallation.findFirst({
-      where: { organizationId: assignment.organizationId },
-      select: { id: true },
+    const repository = await prisma.repository.findUnique({
+      where: { id: repositoryId },
+      select: { url: true },
     });
 
-    if (!installation) {
+    let installationId: bigint | null = null;
+    if (repository?.url) {
+      const match = repository.url.match(/github\.com\/([^/]+)\/([^/]+)/);
+      if (match) {
+        const owner = match[1];
+        const name = match[2].replace(/\.git$/, "");
+        const repoFullName = `${owner}/${name}`;
+
+        const githubRepo = await prisma.gitHubRepo.findFirst({
+          where: {
+            repoFullName: {
+              equals: repoFullName,
+              mode: "insensitive",
+            },
+          },
+          select: { installationId: true },
+        });
+        if (githubRepo && githubRepo.installationId) {
+          installationId = githubRepo.installationId;
+        }
+      }
+    }
+
+    if (!installationId) {
       return NextResponse.json(
-        { error: "No GitHub installation found for this organization" },
+        { error: "No GitHub installation found for this repository" },
         { status: 404, headers: securityHeaders }
       );
     }
 
     // Fetch current quota for audit trail
     const currentQuota = await prisma.aiQuota.findUnique({
-      where: { installationId: installation.id },
+      where: { installationId },
     });
 
-    const previousLimit = currentQuota?.tokenLimit ?? null;
+    const previousLimit = QuotaService.getQuotaMax();
 
     // Update or create quota record
+    const now = new Date();
     await prisma.aiQuota.upsert({
-      where: { installationId: installation.id },
-      update: { tokenLimit },
+      where: { installationId },
+      update: {
+        warningPosted: false,
+      },
       create: {
-        installationId: installation.id,
-        tokenLimit,
-        tokensUsed: 0,
-        windowStart: new Date(),
+        installationId,
+        requestsUsed: 0,
+        tokensConsumed: 0,
+        quotaWindowStart: now,
+        quotaWindowEnd: new Date(now.getTime() + 24 * 60 * 60 * 1000),
         warningPosted: false,
       },
     });
@@ -171,7 +231,7 @@ export async function PUT(
       repositoryId,
       organizationId: assignment.organizationId,
       action: "billing_quota_update",
-      previousValue: previousLimit !== null ? String(previousLimit) : "unset",
+      previousValue: String(previousLimit),
       newValue: String(tokenLimit),
       ipAddress: request.headers.get("x-forwarded-for") || request.headers.get("x-real-ip") || undefined,
     });

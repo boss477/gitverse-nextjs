@@ -54,12 +54,28 @@ interface DetailedRepo extends RepoItem {
 
 const getRepoSlug = (url: string) => {
   try {
-    const cleanUrl = url.trim().replace(/\/$/, "");
-    const match = cleanUrl.match(/github\.com\/([^/]+)\/([^/]+)/);
+    const cleanUrl = url.trim();
+    // Try standard github match first
+    const match = cleanUrl.match(/github\.com\/([^/]+)\/([^/]+)/i);
     if (match) {
       const owner = match[1].toLowerCase();
-      const name = match[2].replace(/\.git$/, "").toLowerCase();
+      const name = match[2].replace(/\.git$/i, "").toLowerCase();
       return `${owner}/${name}`;
+    }
+    // Fallback: parse URL pathname
+    if (cleanUrl.startsWith("http://") || cleanUrl.startsWith("https://")) {
+      const parsed = new URL(cleanUrl);
+      const pathname = parsed.pathname.replace(/^\/|\/$/g, ""); // strip leading/trailing slashes
+      const parts = pathname.split("/");
+      if (parts.length >= 2) {
+        const owner = parts[parts.length - 2].toLowerCase();
+        const name = parts[parts.length - 1].replace(/\.git$/i, "").toLowerCase();
+        return `${owner}/${name}`;
+      }
+    }
+    // If it's already a slug "owner/repo" or similar
+    if (cleanUrl.includes("/") && !cleanUrl.includes("://")) {
+      return cleanUrl.toLowerCase();
     }
   } catch (e) {
     console.error("Failed to parse URL:", e);

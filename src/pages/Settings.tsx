@@ -20,7 +20,6 @@ import {
   EmptyState,
   Modal,
 } from "@/components/ui";
-import { Label } from "@/components/ui/label";
 import { useAuth } from "@/contexts/AuthContext";
 import SettingsSkeleton from "@/components/ui/SettingsSkeleton";
 import { buildApiUrl } from "@/services/apiConfig";
