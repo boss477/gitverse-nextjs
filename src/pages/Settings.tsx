@@ -332,10 +332,6 @@ export default function Settings() {
 });
   };
 
-  const handleDeleteAccount = () => {
-    setShowDeleteModal(true);
-  };
-
   const confirmDeleteAccount = async () => {
     if (isDeletingAccount) return;
 
@@ -354,7 +350,7 @@ export default function Settings() {
         description: "Your account has been deleted successfully.",
       });
 
-      window.location.href = "/signup";
+      window.location.href = "/account-deleted";
     } catch (error: any) {
       console.error("Error deleting account:", error);
       toast({
@@ -851,7 +847,7 @@ export default function Settings() {
                     </p>
                     <Button
                       variant="destructive"
-                      onClick={handleDeleteAccount}
+                      onClick={() => setShowDeleteModal(true)}
                       disabled={isDeletingAccount}
                     >
                       <Trash2 className="h-4 w-4 mr-2" />

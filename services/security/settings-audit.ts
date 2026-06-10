@@ -26,7 +26,7 @@ export class SettingsAuditService {
           repositoryId: entry.repositoryId ?? null,
           organizationId: entry.organizationId ?? null,
           action: entry.action,
-          resource: "settings",
+          resource: "Settings",
           details: {
             previousValue: entry.previousValue,
             newValue: entry.newValue,
@@ -57,9 +57,7 @@ export class SettingsAuditService {
     limit: number = 50
   ) {
     return prisma.auditLog.findMany({
-      where: {
-        repositoryId,
-      },
+      where: { repositoryId },
       orderBy: { createdAt: "desc" },
       take: limit,
     });
@@ -73,9 +71,7 @@ export class SettingsAuditService {
     limit: number = 50
   ) {
     return prisma.auditLog.findMany({
-      where: {
-        organizationId,
-      },
+      where: { organizationId },
       orderBy: { createdAt: "desc" },
       take: limit,
     });
