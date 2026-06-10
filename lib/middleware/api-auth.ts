@@ -20,7 +20,12 @@ async function resolveSessionUser(req: NextRequest): Promise<AuthUser | null> {
     if (token?.sub) {
       const id = Number(token.sub);
       if (Number.isFinite(id)) {
-        return { id, email: (token.email as string) || "", name: (token.name as string) || "" };
+        return {
+          id,
+          email: (token.email as string) || "",
+          name: (token.name as string) || "",
+          scopes: [],
+        };
       }
     }
   } catch {
@@ -51,7 +56,17 @@ async function resolveApiKeyUser(req: NextRequest): Promise<AuthUser | null> {
       select: { id: true, email: true, name: true },
     });
 
-    return user;
+    if (!user) return null;
+
+    let scopes: string[] = [];
+    if (apiKey.scopes && Array.isArray(apiKey.scopes)) {
+      scopes = apiKey.scopes.map(String);
+    }
+
+    return {
+      ...user,
+      scopes,
+    };
   } catch {
     return null;
   }
