@@ -7,6 +7,7 @@ export interface AuthUser {
   id: number;
   email: string;
   name: string;
+  scopes?: string[];
 }
 
 export type AuthResult =
@@ -74,6 +75,13 @@ export function requireScopes(
   requiredScopes: string[],
 ): NextResponse | null {
   if (!authResult.user) return authResult.error;
+  if (requiredScopes.length === 0) return null;
+
+  const userScopes = new Set(authResult.user.scopes ?? []);
+  const missing = requiredScopes.filter((s) => !userScopes.has(s));
+  if (missing.length > 0) {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  }
 
   return null;
 }
