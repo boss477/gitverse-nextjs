@@ -9,10 +9,9 @@ export interface AuthUser {
   name: string;
 }
 
-export interface AuthResult {
-  user: AuthUser | null;
-  error: NextResponse | null;
-}
+export type AuthResult =
+  | { user: AuthUser; error: null }
+  | { user: null; error: NextResponse };
 
 async function resolveSessionUser(req: NextRequest): Promise<AuthUser | null> {
   try {
